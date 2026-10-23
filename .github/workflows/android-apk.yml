@@ -1,0 +1,148 @@
+name: Android APK
+
+# Builds a release APK on GitHub's runners (no Expo/EAS account needed) and publishes it
+# as a workflow artifact and a GitHub Release you can download on your phone.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write # create/update the GitHub Release
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # Secrets are exposed to steps only through env so we can test for their presence.
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # React Native 0.88 / Expo SDK 58 build with JDK 17 (React Native's recommended JDK).
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle (with caching)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck and test
+        run: |
+          npx tsc --noEmit
+          npx jest --ci
+
+      - name: Read app version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./app.json').expo.version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "App version: $VERSION"
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --no-install
+        env:
+          CI: '1'
+
+      - name: Configure release signing
+        id: signing
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
+            KEYSTORE="$RUNNER_TEMP/bloom-release.jks"
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+            mkdir -p "$HOME/.gradle"
+            {
+              echo "BLOOM_UPLOAD_STORE_FILE=$KEYSTORE"
+              echo "BLOOM_UPLOAD_STORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD"
+              echo "BLOOM_UPLOAD_KEY_ALIAS=$ANDROID_KEY_ALIAS"
+              echo "BLOOM_UPLOAD_KEY_PASSWORD=$ANDROID_KEY_PASSWORD"
+            } >> "$HOME/.gradle/gradle.properties"
+            echo "mode=release-key" >> "$GITHUB_OUTPUT"
+            echo "Signing with the release keystore from repository secrets."
+          else
+            echo "mode=debug-key" >> "$GITHUB_OUTPUT"
+            echo "::warning title=APK signed with the public debug key::Repository secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD are not all set, so the APK uses the debug keystore from Expo's prebuild template. That key is public (anyone can sign with it) and can change when Expo updates its template, which would stop updates installing over this build. See README → 'Stable signing'."
+            {
+              echo "## ⚠️ Signed with the public debug key"
+              echo ""
+              echo "The four signing secrets are not set, so this APK uses the debug keystore that \`expo prebuild\` copies from Expo's template."
+              echo "- That key is **public**: anyone could sign an APK that installs over yours."
+              echo "- It can change when Expo updates the template (e.g. a new SDK). A later build would then refuse to install over this one."
+              echo ""
+              echo "Run \`scripts/make-keystore.sh\` and set the secrets (README → *Stable signing*) to fix this."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Build release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Rename APK
+        id: apk
+        run: |
+          SRC=android/app/build/outputs/apk/release/app-release.apk
+          test -f "$SRC" || { echo "::error::APK not found at $SRC"; ls -R android/app/build/outputs || true; exit 1; }
+          NAME="bloom-${{ steps.version.outputs.version }}.apk"
+          mkdir -p dist-apk
+          cp "$SRC" "dist-apk/$NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "path=dist-apk/$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bloom-apk
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ steps.version.outputs.version }}
+          APK: ${{ steps.apk.outputs.path }}
+          SIGNING: ${{ steps.signing.outputs.mode }}
+        run: |
+          NOTES="Bloom ${TAG} — Android APK built from ${GITHUB_SHA::7}.
+
+          Install: open this page on your phone, tap the .apk under Assets, and allow \"Install unknown apps\" for your browser when asked."
+          if [ "$SIGNING" = "debug-key" ]; then
+            NOTES="${NOTES}
+
+          ⚠️ Signed with the public debug key (signing secrets not set). If Android refuses to update, uninstall the old version first — that deletes Bloom's data, so export it in Settings → Your data before you do."
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" --clobber
+            gh release edit "$TAG" --notes "$NOTES" --target "$GITHUB_SHA"
+          else
+            gh release create "$TAG" "$APK" --title "Bloom ${TAG}" --notes "$NOTES" --target "$GITHUB_SHA"
+          fi
+
+      - name: Summary
+        run: |
+          {
+            echo "## Bloom ${{ steps.version.outputs.version }}"
+            echo ""
+            echo "- APK: \`${{ steps.apk.outputs.name }}\` (artifact **bloom-apk** and release **v${{ steps.version.outputs.version }}**)"
+            echo "- Signing: ${{ steps.signing.outputs.mode }}"
+          } >> "$GITHUB_STEP_SUMMARY"
