@@ -47,7 +47,7 @@ Bottom tabs (five at most): **Today · Plan · Yoga · Cycle · Trends**. **Sett
 ### Plan (weight, food & activity)
 A gentle, flexible plan. Targets are shown as a **comfortable range** ("aim around 1,450–1,650 kcal"), with a weekly **flex** allowance for treats. Nothing is strict, and the wording never shames.
 
-**Profile & goal** (optional onboarding step, editable from Plan → pencil or Settings → Your plan):
+**Profile & goal** (optional onboarding step, editable from Plan → pencil or Settings → You & your goals):
 formula (female/male: *"Which formula should we use?"*), birth year, height (cm or ft + in), current weight, target weight, how active you are (four plain descriptions), food preference (vegetarian, eggetarian, non-veg, vegan, **Jain** = vegetarian without onion, garlic or root vegetables, filtered by food names), pace (**Gentle / Steady / Faster**) and yoga sessions a week. A live preview shows the range before you save.
 
 **How the numbers are made** (`src/plan/engine.ts`, tested):
@@ -95,7 +95,7 @@ formula (female/male: *"Which formula should we use?"*), birth year, height (cm 
 - **Calendar**: period days, predicted period (estimate), estimated fertile window and ovulation (only for the two fertility goals), PMS days and days with a log. Meaning is carried by shape and pattern, not colour alone. Tap any day up to today to log it.
 - **Phase suggestions**: food, movement (period-friendly yoga) and self-care ideas for each phase, matched to your diet and yoga level, plus **Insights** (cycle lengths, typical symptoms per phase).
 - **"Late" banner** when the period is a few days past the estimate, with calm wording.
-- **Reminders** (Settings → Cycle reminders, all optional): period coming soon, period may be late, fertile window, daily check-in at a time you choose, daily pill reminder. Scheduled on the phone with `expo-notifications`; Android asks for notification permission only when you turn one on. Reminders are kept in sync automatically when you log or change settings.
+- **Reminders** (Settings → Period & reminders, all optional): period coming soon, period may be late, fertile window, daily check-in at a time you choose, daily pill reminder. Scheduled on the phone with `expo-notifications`; Android asks for notification permission only when you turn one on. Reminders are kept in sync automatically when you log or change settings.
 - **Discreet mode** (on by default): notifications say only "Bloom reminder" and never mention periods. **Hide cycle data on Today** keeps the cycle card off the home screen.
 - Predictions come from the **merged** history: your Bloom logs plus Health Connect `MenstruationPeriod`/`MenstruationFlow` (for example from Flo), when connected. Overlapping and adjacent days are merged into one period, and the history shows each period's source.
 - Predictions are always labelled as **estimates**. **Bloom is not a method of contraception**, and the fertile window is an awareness aid only.
@@ -118,10 +118,17 @@ formula (female/male: *"Which formula should we use?"*), birth year, height (cm 
 - Opens from the Kitchen card on the Plan tab.
 
 ### Connect apps
-Settings → **Connect apps** explains, app by app (Noise watch, Flo, Google Fit, Google Health, Samsung Health, Fitbit, HealthifyMe, MyFitnessPal, Strava, Mi Fitness / Zepp, boAt / Fire-Boltt, Huawei Health…), how its data can reach Bloom through **Health Connect**, with step-by-step instructions and whether Bloom has actually seen data from it yet. Bloom never talks to these apps directly; it only sees each record's source app.
+Settings → **Connect apps & watch** (`/connect`):
+- **Health Connect status** at the top with **one** button that changes with the state: *Install* (Play Store) → *Update* → *Allow access* (permission sheet) → *Connected ✓* (*Manage access*). If the permission sheet fails or nothing is allowed, Bloom says so and offers **Open Health Connect settings**.
+- **Your apps**: one row per app (Noise first, then Flo, Google Fit, Google Health, Samsung Health; *Show more apps* for Fitbit, HealthifyMe, MyFitnessPal, Strava, Mi Fitness / Zepp, boAt / Fire-Boltt, Huawei Health, Apple Health) with a status chip (*Connected ✓* once Bloom has seen data from it in the last 30 days, otherwise *Set up →*). *Other apps sending data* is collapsed at the bottom.
+- Each row opens a **step-by-step wizard** (`/connect/[appId]`, defined in `src/health/connectWizard.ts`). Ticks are saved on the phone; *allow Health Connect* and *Check it's working* tick themselves.
+- **Noise watch** has two paths. *Through NoiseFit* (recommended; steps, sleep, heart rate, SpO₂): install NoiseFit and pair → NoiseFit: Profile → Connect apps (or Settings → Third-party) → Google Fit → allow → Google Fit: Profile → ⚙ Settings → *Sync Fit with Health Connect* (Google Health: Settings → Health Connect) → allow Health Connect in Bloom → **Check it's working** ("Found 4,210 steps from Google Fit yesterday ✓"). *Direct Bluetooth* (beta, heart rate only) opens the Watch screen.
+- **Flo** only imports old period history — Bloom already tracks periods itself.
+
+Bloom never talks to these apps directly; it only sees each record's source app.
 
 ### Direct watch (beta)
-Settings → **Watch (direct, beta)** connects to a watch or chest strap over **standard Bluetooth LE** — no companion app needed, *when the watch supports it*:
+Connect apps & watch → **Connect a watch directly (beta)** connects to a watch or chest strap over **standard Bluetooth LE** — no companion app needed, *when the watch supports it*:
 - Reads only public Bluetooth SIG services: **Heart Rate (0x180D)**, **Battery (0x180F)** and **Device Information (0x180A)**. No proprietary protocols.
 - Shows live heart rate and saves **one reading per minute** (the median) into Bloom, labelled **"Watch (direct)"** on cards and charts.
 - Reconnects automatically to the paired watch **while Bloom is open** (nothing runs in the background). If nothing was paired, Bloom never touches Bluetooth at start-up.
@@ -150,17 +157,15 @@ Distance is Health Connect's value when there is one. Otherwise it's **steps × 
 7- or 30-day charts for steps (with a goal line), sleep and heart rate. With no watch, the heart chart shows the daily average of your logged readings and says so. Each chart has a source label and a spoken summary.
 
 ### Settings
-- **What you track**: choose which areas Today shows.
-- **Your plan**: edit your goal, and optional **Health Connect sharing** toggles — read weight (smart scales, Google Health), save weights, save meals (Nutrition records) and save workouts (exercise sessions). All are off by default. Bloom asks Health Connect for each permission only when you turn its toggle on.
-- **Your cycle / Cycle reminders / Privacy**: usual lengths, goal, reminders, discreet notifications and *Hide cycle data on Today*.
-- **Connect apps**: a step-by-step screen for Health Connect, Google Fit, a watch or Flo.
-- **Watch (direct, beta)**: pair, disconnect or forget a Bluetooth watch.
-- **Steps**: daily goal, stride length, and the phone-sensor permission.
-- **AI Coach**: set up your Gemini key (see below).
-- **Health Connect (optional)**: connect, manage permissions, and see which app supplied each data type.
-- **Connected apps (optional)**: checklist for Flo → Health Connect, NoiseFit → Google Fit, and **Google Fit → Profile → Settings → "Sync Fit with Health Connect"**.
-- **Your data**: **Export as JSON** (opens the share sheet; includes cycle extras and settings, plan, kitchen, yoga history and the paired watch) and **Delete all my data** (asks you to confirm first; wipes every Bloom table, yoga preferences, the paired watch and scheduled cycle reminders).
-- **Demo mode**: fills every screen with realistic sample data.
+The gear on Today opens a short **Settings hub** (`/settings`, its own stack, not a tab). Each row opens its own page:
+- **You & your goals** — goal summary, *Edit my goal*, **What you track**, *Show the welcome steps again*.
+- **Connect apps & watch** — see above.
+- **AI Coach** — set up or remove your Gemini key (see below).
+- **Health Connect sharing** — optional toggles, all off by default: read weight (smart scales, Google Health), save weights, save meals (Nutrition records), save workouts (exercise sessions). Bloom asks Health Connect for each permission only when you turn its toggle on. Also the past-data note and *which app sent what* (30 days).
+- **Period & reminders** — usual lengths, goal, reminders, discreet notifications and *Hide cycle data on Today*.
+- **Steps & phone sensors** — daily goal, physical-activity permission, how counting works, stride length.
+- **Data & privacy** — **Export my data** (JSON, share sheet; includes cycle extras and settings, plan, kitchen, yoga history and the paired watch), **Delete all my data** (asks first; wipes every Bloom table, yoga preferences, the paired watch, connect-wizard ticks and scheduled cycle reminders), **Demo mode**, and what leaves the phone.
+- **About Bloom** — version, what's new in 1.1, safety notes.
 
 ### Onboarding
 Welcome → **What to track** (cycle / steps / sleep / heart) → *optional* **Profile & goal** (Skip for now) → *optional* **"Connect Health Connect for all-day steps (and your watch/Flo if you use them)"** with **Skip for now** → done.
@@ -180,8 +185,8 @@ Welcome → **What to track** (cycle / steps / sleep / heart) → *optional* **P
 
 1. Go to **https://aistudio.google.com/app/apikey** on any device and sign in with a Google account.
 2. Tap **Create API key** and copy it. New keys start with **`AQ.`**; older keys start with `AIza`. Both work.
-3. In Bloom open **Settings → AI Coach**, paste the key into **Gemini API key** and tap **Use my key**.
-   - Bloom sends one tiny test request. You'll see **"AI coach turned on"** or **"Google didn't accept that key"**.
+3. In Bloom open **Settings → AI Coach** (or tap **Set up AI Coach** on Ask Bloom, AI quick add or AI recipes). Tap **Paste** (it trims spaces and quotes) or type the key, then tap **Save & test**.
+   - Bloom sends one tiny test request and says exactly what happened: *AI Coach is on ✓*, *Google says this key isn't valid*, *Google didn't accept this new "AQ." key* (after trying both the header and `?key=`), *You seem to be offline*, *Google's AI is busy*, or *Key saved, free limit used up for now* — each with one next step. A key with an unusual prefix gets a gentle warning but can still be tried.
    - The key is stored encrypted on the phone (`expo-secure-store`). It is only ever sent to `generativelanguage.googleapis.com`, in the `x-goog-api-key` header. If Google rejects the key in the header with an auth error (some `AQ.` keys reportedly need this), Bloom retries once with the key as a `?key=` URL parameter and remembers which way worked; quota errors never trigger this. The key is never logged. **Remove key** deletes it.
 4. On Today, tap **Ask Bloom**. You can tap a suggested question ("Explain my cycle phase", "How was my sleep this week?", "Am I hitting my step goal?"), use **Morning brief** or **Weekly review**, or type your own question.
 
@@ -234,7 +239,7 @@ gh secret set ANDROID_KEY_PASSWORD               # same password
 
 **Back up `bloom-release.jks` and its password**, for example in a password manager. `*.jks` is gitignored, so never commit it. If you lose the keystore, you'll have to uninstall Bloom (export your data first) before a build signed with a new key will install.
 
-> Switching from debug signing to your own key changes the signature once, so Android will refuse to install the new build over the old one. Export your data first (Settings → Your data). Bloom can't import yet, so keep that JSON file as a backup. Then uninstall the old build and install the new one.
+> Switching from debug signing to your own key changes the signature once, so Android will refuse to install the new build over the old one. Export your data first (Settings → Data & privacy). Bloom can't import yet, so keep that JSON file as a backup. Then uninstall the old build and install the new one.
 
 ### How the CI build works
 
@@ -274,11 +279,12 @@ src/
 │   │                        mounts CycleReminderSync and reconnects a paired watch (initWatchIfPaired)
 │   ├── index.tsx            redirect → onboarding | tabs
 │   ├── coach.tsx            AI coach chat (pushed from Today's "Ask Bloom" card)
-│   ├── connect.tsx · watch.tsx   Connect apps guide · direct Bluetooth watch (beta)
+│   ├── connect/ · watch.tsx  Connect apps (Health Connect status + app rows) · [appId] wizards · direct Bluetooth watch (beta)
+│   ├── settings/            hub + profile · ai · health-connect · cycle · steps · data · about (own Stack)
 │   ├── weight/ · food/ · activity/   plan logging screens
 │   ├── cycle/ · yoga/ · kitchen/     deep screens for those tabs/features
 │   ├── onboarding/          index (welcome) · track · profile (optional) · connect (optional HC) · done
-│   └── (tabs)/              index (Today) · plan · yoga · cycle · trends · settings (hidden from the tab bar)
+│   └── (tabs)/              index (Today) · plan · yoga · cycle · trends
 ├── db/                      expo-sqlite store: schema + migrations (v3), repositories, allData (export/delete everything)
 ├── plan/                    weight engine, adaptive plan, food/activity, Health Connect sharing
 ├── cycle/ · notify/         cycle 2.0 store (cycle_kv, cycle_day_extras), UI, reminders (expo-notifications)
@@ -314,7 +320,7 @@ scripts/make-keystore.sh        one-time keystore creation
 - **Direct watch (beta)** only works with watches that expose the standard Bluetooth Heart Rate service, only while Bloom is open, and reads heart rate only.
 - **Cycle reminders** are local notifications. Some phones' battery savers delay or drop them; they're estimates, not alarms to rely on.
 - **Kitchen barcode lookup** needs internet and depends on Open Food Facts having the product; you can always enter it by hand.
-- Bloom only writes to Health Connect if you turn on a sharing toggle (Settings → Your plan): weights, meals (Nutrition) and workouts (ExerciseSession). Records Bloom wrote are skipped when it reads Health Connect back, so nothing is counted twice. Android only.
+- Bloom only writes to Health Connect if you turn on a sharing toggle (Settings → Health Connect sharing): weights, meals (Nutrition) and workouts (ExerciseSession). Records Bloom wrote are skipped when it reads Health Connect back, so nothing is counted twice. Android only.
 - **Plan numbers are estimates.** Calorie formulas, MET values, food values (some marked *approx.*) and AI estimates are all approximate. The plan is general guidance, not medical advice. If you're pregnant, breastfeeding, under 18 or managing a health condition, plan with your doctor.
 - **Demo mode** shows sample plan data. Anything you log while it's on is saved to your real (hidden) data.
 
@@ -322,6 +328,8 @@ scripts/make-keystore.sh        one-time keystore creation
 
 ## Notes and decisions
 
+- **Settings is a stack, not a hidden tab:** in expo-router 58, `expo-router/js-tabs` turns `href: null` into `hidden: true`, and `useVisibleTabsWithRedirect` immediately `router.replace`s a focused hidden tab with the first tab. In v1.1.0 that made `/settings` bounce straight back to Today ("the gear does nothing"). Settings now lives in `src/app/settings/` with its own Stack.
+- **Health Connect permission requests** must only include permissions declared in `app.json` (`__tests__/hcPermissions.test.ts` checks this); `initialize()` is awaited before `requestPermission`, and failures are shown with an *Open Health Connect settings* fallback.
 - **Plan storage:** schema v2 adds `kv` (profile, plan settings), `weight_logs`, `food_entries`, `custom_foods`, `food_favourites`, `water_days`, `activity_logs` and `plan_adjustments`. Every statement uses `IF NOT EXISTS`, so migrations can run again safely. Export and "Delete all my data" include these tables.
 - **Health Connect permissions added for the plan:** `READ_WEIGHT`, `WRITE_WEIGHT`, `READ_NUTRITION`, `WRITE_NUTRITION`, `WRITE_EXERCISE`. Record shapes were checked against react-native-health-connect 4.1.3 types: `Weight.weight: Mass`, `Nutrition.energy/protein/totalCarbohydrate/totalFat/dietaryFiber`, `ExerciseSession.exerciseType` (ExerciseType constants). Write permissions are requested only when a toggle is turned on.
 

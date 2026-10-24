@@ -11,6 +11,7 @@ import { useCoach } from '../../ai/CoachState';
 import { DemoBanner } from '../../components/DemoBanner';
 import { Screen } from '../../components/Screen';
 import { ChipRow, Field, ToggleChip } from '../../components/sheets/Sheet';
+import { SetUpAiCard } from '../../components/SetUpAiCard';
 import { Button, Card, CardHeader, Text } from '../../components/ui';
 import { RECIPE_MEAL_LABEL, RECIPE_MEALS, type RecipeMeal } from '../../content/recipes';
 import { aiMakeRecipe, AiRecipeError } from '../../kitchen/aiRecipe';
@@ -56,10 +57,7 @@ export default function AiRecipe() {
       <BackHeader title="Make me something" subtitle="AI recipe from your kitchen" />
       <DemoBanner />
       {!coach.hasKey ? (
-        <Card>
-          <Text>Add your free Gemini key in Settings → AI Coach to use AI recipes. Everything else in the Kitchen works without it.</Text>
-          <Button label="Open Settings" variant="secondary" onPress={() => router.push('/settings')} style={{ marginTop: space.sm }} />
-        </Card>
+        <SetUpAiCard body="AI recipes use your own free Google key. Everything else in the Kitchen works without it." />
       ) : (
         <>
           <Field label="Which meal?">

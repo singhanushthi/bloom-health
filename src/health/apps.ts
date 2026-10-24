@@ -10,7 +10,7 @@
  * is matched by a name token instead (see `tokens`) — we never guess an exact id.
  */
 import { MOCK_SOURCES } from '../data/mock';
-import { hc, HEALTH_CONNECT_PACKAGE } from './client';
+import { HEALTH_CONNECT_PACKAGE } from './client';
 import type { ReadContext } from './context';
 import { getSources, isPhoneOrigin } from './sources';
 import { LOCAL_SOURCE, type MetricId, type SourcesByMetric } from './types';
@@ -55,11 +55,6 @@ export interface ConnectApp {
   steps: string[];
   /** Search term for the Play Store; null when there's nothing to install on Android. */
   storeQuery: string | null;
-  /**
-   * Optional "connect the watch straight to Bloom over Bluetooth" route, shown as Option 1
-   * in "How to connect" (the `steps` above then become Option 2).
-   */
-  directOption?: { title: string; body: string; route: '/watch' };
 }
 
 export const CONNECT_APPS: ConnectApp[] = [
@@ -79,11 +74,6 @@ export const CONNECT_APPS: ConnectApp[] = [
       'Come back to Bloom — new data shows up after the next sync.',
     ],
     storeQuery: 'NoiseFit',
-    directOption: {
-      title: 'Connect the watch directly (if supported)',
-      body: 'Heart rate only, no NoiseFit needed — works if your watch shares heart rate over standard Bluetooth. Many Noise models don’t.',
-      route: '/watch',
-    },
   },
   {
     id: 'flo',
@@ -388,19 +378,4 @@ export async function readRecentSources(ctx: ReadContext): Promise<SourcesByMetr
   if (ctx.mode === 'demo') return MOCK_SOURCES;
   const r = await getSources(ctx);
   return r.data ?? {};
-}
-
-/** Opens Health Connect's data & access screen (falls back to its settings). */
-export function openHealthConnectData(): void {
-  const m = hc();
-  try {
-    if (m?.openHealthConnectDataManagement) m.openHealthConnectDataManagement();
-    else m?.openHealthConnectSettings();
-  } catch {
-    try {
-      m?.openHealthConnectSettings();
-    } catch {
-      // ignore — the screen also explains where Health Connect lives
-    }
-  }
 }

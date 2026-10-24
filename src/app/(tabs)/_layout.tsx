@@ -5,7 +5,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 
-/** Bottom tabs (max 5): Today · Plan · Yoga · Cycle · Trends. Settings opens from the gear on Today. */
+/**
+ * Bottom tabs (max 5): Today · Plan · Yoga · Cycle · Trends.
+ * Settings is NOT a tab: it's a stack at src/app/settings (opened from the gear on Today). In
+ * expo-router 58 a hidden tab (`href: null`) is redirected back to the first tab as soon as it
+ * gains focus, so a hidden "settings" tab can never be opened.
+ */
 export default function TabsLayout() {
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
@@ -69,8 +74,6 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, focused }) => <ChartLine size={24} color={color as string} strokeWidth={focused ? 2.4 : 1.8} />,
         }}
       />
-      {/* Still a route (/settings) — opened from the gear button on Today, hidden from the tab bar. */}
-      <Tabs.Screen name="settings" options={{ title: 'Settings', href: null }} />
     </Tabs>
   );
 }

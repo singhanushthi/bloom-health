@@ -60,7 +60,9 @@ jest.mock(
 );
 
 import { setDriver } from '../src/db/driver';
-import { activityLogs, foodEntries, weightLogs } from '../src/db/repos';
+import { activityLogs, foodEntries, kv, weightLogs } from '../src/db/repos';
+import { PLAN_SEGMENT_KEY } from '../src/components/usePref';
+import { router } from 'expo-router';
 import { todayKey } from '../src/health/dates';
 import { memoryDriver } from '../test-utils/memoryDriver';
 import { CoachProvider } from '../src/ai/CoachState';
@@ -101,17 +103,48 @@ beforeEach(async () => {
 describe('demo mode', () => {
   beforeEach(() => setSettings(true));
 
-  it('renders the Plan with progress, targets, chart, ideas and updates', async () => {
+  it('renders the Plan in four segments, each with one primary action', async () => {
     await render(wrap(<Plan />));
     expect(await screen.findByText('Your plan', {}, find)).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Overview' })).toBeTruthy();
+    // Overview: hero, targets, updates, AI weekly plan.
     expect(await screen.findByText(/% done/, {}, find)).toBeTruthy();
     expect(screen.getByText(/Aim around this/)).toBeTruthy();
-    expect(screen.getByLabelText(/^Weight chart, last 42 days/)).toBeTruthy();
-    expect(screen.getByLabelText('Show night weights')).toBeTruthy();
-    expect(screen.getByText(/Next meal ideas/i)).toBeTruthy();
     expect(screen.getByText(/added 100 kcal because you lost faster than planned/)).toBeTruthy();
-    expect(screen.getByLabelText(/Yoga, last 7 days: 3 of 4 sessions/)).toBeTruthy();
     expect(screen.getByText(/Add your free Gemini key/)).toBeTruthy();
+    expect(screen.queryByLabelText(/^Weight chart, last 42 days/)).toBeNull();
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Food' }));
+    expect(await screen.findByText(/Next meal ideas/i, {}, find)).toBeTruthy();
+    expect(screen.getByText('Log food')).toBeTruthy();
+    expect(screen.getByLabelText(/^Breakfast: /)).toBeTruthy();
+    expect(screen.getByText(/of \d+ glasses/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Kitchen — cook healthy/)).toBeTruthy();
+    await fireEvent.press(screen.getByText('Log food'));
+    expect(router.push).toHaveBeenLastCalledWith('/food/add');
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Activity' }));
+    expect(await screen.findByLabelText(/Yoga, last 7 days: 3 of 4 sessions/, {}, find)).toBeTruthy();
+    expect(screen.getByText('Log activity')).toBeTruthy();
+    await fireEvent.press(screen.getByText('Log activity'));
+    expect(router.push).toHaveBeenLastCalledWith('/activity/add');
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Weight' }));
+    expect(await screen.findByLabelText(/^Weight chart, last 42 days/, {}, find)).toBeTruthy();
+    expect(screen.getByLabelText('Show night weights')).toBeTruthy();
+    expect(screen.getByText('Recent entries')).toBeTruthy();
+    await fireEvent.press(screen.getByText('Log weight'));
+    expect(router.push).toHaveBeenLastCalledWith('/weight');
+  });
+
+  it('remembers the last selected Plan segment', async () => {
+    const first = await render(wrap(<Plan />));
+    await fireEvent.press(await screen.findByRole('tab', { name: 'Weight' }, find));
+    await waitFor(async () => expect(await kv.get(PLAN_SEGMENT_KEY)).toBe('weight'), find);
+    await first.unmount();
+    await render(wrap(<Plan />));
+    expect(await screen.findByLabelText(/^Weight chart, last 42 days/, {}, find)).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Weight', selected: true })).toBeTruthy();
   });
 
   it('renders the Food day with meals, macros and water', async () => {
@@ -135,7 +168,8 @@ describe('standalone (no Health Connect, nothing logged)', () => {
   it('Plan invites setting up a goal', async () => {
     await render(wrap(<Plan />));
     expect(await screen.findByText('Set up my plan', {}, find)).toBeTruthy();
-    expect(screen.getByText('Log food')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('tab', { name: 'Food' }));
+    expect(await screen.findByText('Log food', {}, find)).toBeTruthy();
   });
 
   it('Food add: search → quantity → Add saves an entry', async () => {

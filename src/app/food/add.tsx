@@ -330,9 +330,12 @@ function AiQuickAdd({ meal }: { meal: Meal }) {
 
   if (!coach.hasKey) {
     return (
-      <InfoNote icon={Sparkles} accent={c.sleep} tint={c.sleepSoft}>
-        Tip: add your free Gemini key in Settings → AI Coach to describe a meal in words (“2 roti, dal, salad”) and get an estimate.
-      </InfoNote>
+      <View style={{ gap: space.xs }}>
+        <InfoNote icon={Sparkles} accent={c.sleep} tint={c.sleepSoft}>
+          Tip: add your free Gemini key in Settings → AI Coach to describe a meal in words (“2 roti, dal, salad”) and get an estimate.
+        </InfoNote>
+        <Button label="Set up AI Coach" variant="ghost" icon={Sparkles} onPress={() => router.push('/settings/ai')} accessibilityHint="Opens AI Coach setup" />
+      </View>
     );
   }
 

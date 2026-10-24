@@ -65,6 +65,8 @@ function Root() {
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="coach" options={{ animation: 'slide_from_right' }} />
+        {/* Settings hub + sub-pages (own stack). Back from the hub returns to Today. */}
+        <Stack.Screen name="settings" options={{ headerShown: false, animation: 'slide_from_right' }} />
       </Stack>
     </>
   );

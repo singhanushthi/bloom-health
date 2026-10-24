@@ -1,5 +1,6 @@
 /**
- * Compact plan cards for the Today screen: Weight, Food and Activity.
+ * Plan cards: the "Set up my plan" card (Plan + Today) and the older Today cards for Weight,
+ * Food and Activity (Today now uses the glance tiles in src/components/today.tsx instead).
  * Each has a spoken summary on its content and a separately focusable action button.
  */
 import { router } from 'expo-router';
@@ -7,14 +8,22 @@ import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, Plus, Scale, Target
 import React from 'react';
 import { View } from 'react-native';
 import { Ring } from '../../components/charts';
-import { Button, Card, CardHeader, CardSkeleton, Text } from '../../components/ui';
+import { Button, Card, CardHeader, CardSkeleton, Text, TextButton } from '../../components/ui';
 import { space } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import type { PlanState } from '../data';
 import { fmtKg } from './parts';
 
-export function PlanSetupCard() {
+export function PlanSetupCard({ compact = false }: { compact?: boolean } = {}) {
   const { c } = useTheme();
+  if (compact) {
+    return (
+      <Card tint={c.cycleSoft}>
+        <Text tone="muted">Set a gentle goal for a comfortable daily range, protein and water.</Text>
+        <TextButton label="Set up my plan" icon={ArrowRight} onPress={() => router.push('/onboarding/profile')} style={{ marginTop: space.xxs }} />
+      </Card>
+    );
+  }
   return (
     <Card tint={c.cycleSoft}>
       <View accessible accessibilityLabel="Your plan. Set a goal to get a gentle daily calorie range, protein and water targets.">
