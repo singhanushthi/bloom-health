@@ -1,16 +1,17 @@
 /**
  * Today dashboard. Shows only the areas chosen in onboarding/settings, a small "Ask Bloom"
- * card (AI coach), and one floating "Log" button that opens the action sheet.
+ * card (AI coach), compact plan cards (weight, food, activity), today's yoga, and one floating
+ * "Log" button that opens the action sheet. Settings opens from the gear in the header.
  */
 import { router, useFocusEffect } from 'expo-router';
-import { ChevronRight, Sparkles } from 'lucide-react-native';
+import { ChevronRight, Settings, Sparkles } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { ActivityCard, CycleCard, HeartCard, SleepCard, Spo2Card } from '../../components/cards';
 import { DemoBanner } from '../../components/DemoBanner';
 import { Screen } from '../../components/Screen';
 import { LogFab } from '../../components/sheets/LogSheets';
-import { Text } from '../../components/ui';
+import { IconButton, Text } from '../../components/ui';
 import {
   getActivityToday,
   getCycleStatus,
@@ -19,6 +20,9 @@ import {
   getLatestSpo2,
 } from '../../health';
 import { useMetric } from '../../hooks/useMetric';
+import { usePlan } from '../../plan/usePlan';
+import { ActivityTodayCard, FoodTodayCard, PlanSetupCard, WeightTodayCard } from '../../plan/ui/TodayCards';
+import { TodayYogaCard } from '../../yoga/TodayYogaCard';
 import { useStepSensor } from '../../sensors/StepSensor';
 import { useAppState } from '../../state/AppState';
 import { radius, space, touch } from '../../theme/tokens';
@@ -40,11 +44,12 @@ export default function Today() {
   const sleep = useMetric(getLastNightSleep);
   const heart = useMetric(getHeartToday);
   const spo2 = useMetric(getLatestSpo2);
+  const plan = usePlan();
   const [refreshing, setRefreshing] = useState(false);
 
   const reloadAll = useCallback(async () => {
-    await Promise.all([cycle.reload(), activity.reload(), sleep.reload(), heart.reload(), spo2.reload()]);
-  }, [cycle, activity, sleep, heart, spo2]);
+    await Promise.all([cycle.reload(), activity.reload(), sleep.reload(), heart.reload(), spo2.reload(), plan.reload()]);
+  }, [cycle, activity, sleep, heart, spo2, plan]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -76,14 +81,22 @@ export default function Today() {
   return (
     <View style={{ flex: 1 }}>
       <Screen refreshing={refreshing} onRefresh={onRefresh} contentStyle={{ paddingBottom: 112 }}>
-        <View accessible accessibilityRole="header" accessibilityLabel={`${greeting(now)}. ${dateText}`}>
-          <Text variant="caption" tone="muted">
-            {dateText}
-          </Text>
-          <Text variant="display">{greeting(now)}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.sm }}>
+          <View accessible accessibilityRole="header" accessibilityLabel={`${greeting(now)}. ${dateText}`} style={{ flex: 1 }}>
+            <Text variant="caption" tone="muted">
+              {dateText}
+            </Text>
+            <Text variant="display">{greeting(now)}</Text>
+          </View>
+          <IconButton icon={Settings} accessibilityLabel="Settings" onPress={() => router.push('/settings')} />
         </View>
         <DemoBanner />
         <AskBloomCard />
+        {plan.state && !plan.state.profile ? <PlanSetupCard /> : null}
+        <WeightTodayCard state={plan.state} loading={plan.loading} />
+        <FoodTodayCard state={plan.state} loading={plan.loading} />
+        <ActivityTodayCard state={plan.state} loading={plan.loading} />
+        <TodayYogaCard />
         {show('cycle') ? <CycleCard loading={cycle.loading} result={cycle.result} /> : null}
         {show('steps') ? <ActivityCard loading={activity.loading} result={activity.result} goal={stepGoal} /> : null}
         {show('sleep') ? <SleepCard loading={sleep.loading} result={sleep.result} /> : null}

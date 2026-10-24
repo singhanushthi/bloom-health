@@ -5,7 +5,8 @@
  * Every save writes to SQLite (src/db/repos) and bumps AppState.dataVersion so screens re-read.
  * Validation errors are shown inline under the field that caused them.
  */
-import { CalendarHeart, Droplet, HeartPulse, Moon, NotebookPen, Footprints } from 'lucide-react-native';
+import { router } from 'expo-router';
+import { Activity, CalendarHeart, Droplet, HeartPulse, Moon, NotebookPen, Footprints, Scale, Utensils } from 'lucide-react-native';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import {
@@ -66,7 +67,15 @@ export function LogSheetsProvider({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={value}>
       {children}
-      <LogMenuSheet visible={state.kind === 'menu'} onClose={close} onPick={(k) => open(k)} />
+      <LogMenuSheet
+        visible={state.kind === 'menu'}
+        onClose={close}
+        onPick={(k) => open(k)}
+        onRoute={(href) => {
+          close();
+          router.push(href);
+        }}
+      />
       {state.kind === 'period' ? <PeriodSheet onClose={close} /> : null}
       {state.kind === 'day' ? <DayLogSheet onClose={close} day={state.opts.day ?? todayKey()} /> : null}
       {state.kind === 'sleep' ? <SleepSheet onClose={close} /> : null}
@@ -82,13 +91,19 @@ function LogMenuSheet({
   visible,
   onClose,
   onPick,
+  onRoute,
 }: {
   visible: boolean;
   onClose: () => void;
   onPick: (k: SheetKind) => void;
+  onRoute: (href: string) => void;
 }) {
   const { c } = useTheme();
-  const items: { k: SheetKind; label: string; hint: string; icon: typeof Droplet; accent: string; soft: string }[] = [
+  // Plan logging lives on its own screens (src/app/weight, food, activity).
+  const items: { k: SheetKind | string; route?: string; label: string; hint: string; icon: typeof Droplet; accent: string; soft: string }[] = [
+    { k: 'weight', route: '/weight', label: 'Weight', hint: 'Morning or night weight in kg', icon: Scale, accent: c.spo2, soft: c.spo2Soft },
+    { k: 'food', route: '/food/add', label: 'Food', hint: 'Search, recent, favourites or AI quick add', icon: Utensils, accent: c.steps, soft: c.stepsSoft },
+    { k: 'activity', route: '/activity/add', label: 'Activity', hint: 'What you did today — walk, yoga, gym…', icon: Activity, accent: c.heart, soft: c.heartSoft },
     { k: 'period', label: 'Period', hint: 'Start date, end date and flow', icon: Droplet, accent: c.cycle, soft: c.cycleSoft },
     { k: 'day', label: 'Day log', hint: 'Flow, symptoms, mood and a note for today', icon: NotebookPen, accent: c.cycle, soft: c.cycleSoft },
     { k: 'sleep', label: 'Sleep', hint: 'Bedtime, wake time and quality', icon: Moon, accent: c.sleep, soft: c.sleepSoft },
@@ -102,7 +117,7 @@ function LogMenuSheet({
           return (
             <Pressable
               key={it.k}
-              onPress={() => onPick(it.k)}
+              onPress={() => (it.route ? onRoute(it.route) : onPick(it.k as SheetKind))}
               accessibilityRole="button"
               accessibilityLabel={it.label}
               accessibilityHint={it.hint}
@@ -553,7 +568,7 @@ export function LogFab({ bottomOffset = 0 }: { bottomOffset?: number }) {
       onPress={() => open('menu')}
       accessibilityRole="button"
       accessibilityLabel="Log"
-      accessibilityHint="Log a period, day, sleep or reading"
+      accessibilityHint="Log weight, food, activity, a period, day, sleep or reading"
       android_ripple={{ color: '#ffffff33', borderless: false }}
       style={({ pressed }) => ({
         position: 'absolute',

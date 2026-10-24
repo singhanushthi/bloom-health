@@ -22,6 +22,8 @@ import { getLastNightSleep } from '../health/sleep';
 import { getLatestSpo2 } from '../health/spo2';
 import { getTrends } from '../health/trends';
 import { mockDayLogs } from '../data/mock';
+import { loadPlanSummary, type PlanSummary } from '../plan/data';
+import { subscribePlan } from '../plan/events';
 
 export interface SummaryInput {
   today: DayKey;
@@ -34,6 +36,8 @@ export interface SummaryInput {
   heart: MetricResult<HeartToday> | null;
   spo2: MetricResult<Spo2Latest> | null;
   dayLogs: DayLog[];
+  /** Weight, food, activity and yoga aggregates (optional). */
+  plan?: PlanSummary | null;
 }
 
 const fmtH = (min: number) => `${Math.floor(min / 60)}h${String(Math.round(min % 60)).padStart(2, '0')}m`;
@@ -160,12 +164,34 @@ export function buildSummary(i: SummaryInput): string {
   const o = i.spo2?.status === 'ok' ? i.spo2.data : null;
   L.push(o ? `Latest SpO2: ${o.percent}% at ${o.time.slice(0, 16).replace('T', ' ')}.` : 'SpO2: no reading in the last 7 days.');
 
+  /* Plan: weight, food, activity, yoga (aggregates + food item names only) */
+  const p = i.plan;
+  if (p) {
+    if (p.mode) L.push(`Plan goal: ${p.mode} weight${p.targetKg !== null ? ` (target ${p.targetKg} kg)` : ''}; daily range ${p.kcalMin ?? '?'}–${p.kcalMax ?? '?'} kcal; protein target ${p.proteinTarget ?? '?'} g.`);
+    L.push(
+      p.trendKg !== null
+        ? `Weight trend (7-day average of morning weights): ${p.trendKg.toFixed(1)} kg${p.trendDelta7 !== null ? `, ${p.trendDelta7 > 0 ? '+' : ''}${p.trendDelta7.toFixed(1)} kg vs a week ago` : ''}; ${p.morningWeighIns7} morning weigh-ins in 7 days.`
+        : 'Weight: no weights logged.'
+    );
+    L.push(
+      p.daysWithFood7
+        ? `Food last 7 days: ${p.daysWithFood7} days logged, average ${p.avgKcal7} kcal and ${p.avgProtein7} g protein per logged day.${p.topFoods.length ? ` Common items: ${p.topFoods.join(', ')}.` : ''}`
+        : 'Food: nothing logged in 7 days.'
+    );
+    L.push(`Workouts last 7 days: ${p.activityMinutes7} minutes logged; yoga sessions: ${p.yogaSessions7}.`);
+    if (p.cycleNote) L.push('Note: around the period now — water retention can add 1–2 kg temporarily.');
+  }
+
   return L.join('\n');
 }
 
 /* ------------------------------- Gathering ------------------------------- */
 
 let cache: { key: string; text: string } | null = null;
+// Plan writes (weight, food, activity, water) don't bump dataVersion — drop the cache on them.
+subscribePlan(() => {
+  cache = null;
+});
 
 export function summaryCacheKey(ctx: ReadContext, dataVersion: number, stepGoal: number, now = new Date()) {
   return `${ctx.mode}|${dataVersion}|${stepGoal}|${todayKey(now)}|${Array.from(ctx.granted).sort().join(',')}`;
@@ -184,7 +210,7 @@ export async function getSummary(ctx: ReadContext, dataVersion: number, stepGoal
       return null;
     }
   };
-  const [cycle, trends, activity, sleep, heart, spo2, logs] = await Promise.all([
+  const [cycle, trends, activity, sleep, heart, spo2, logs, plan] = await Promise.all([
     safe(getCycleStatus(c)),
     safe(getTrends(c, 30)),
     safe(getActivityToday(c)),
@@ -192,6 +218,7 @@ export async function getSummary(ctx: ReadContext, dataVersion: number, stepGoal
     safe(getHeartToday(c)),
     safe(getLatestSpo2(c)),
     ctx.mode === 'demo' ? Promise.resolve(mockDayLogs(now)) : safe(dayLogRepo.list(addDays(today, -29), today)),
+    safe(loadPlanSummary(c, { cycleTracked: true })),
   ]);
   const text = buildSummary({
     today,
@@ -204,6 +231,7 @@ export async function getSummary(ctx: ReadContext, dataVersion: number, stepGoal
     heart,
     spo2,
     dayLogs: logs ?? [],
+    plan,
   });
   cache = { key, text };
   return text;

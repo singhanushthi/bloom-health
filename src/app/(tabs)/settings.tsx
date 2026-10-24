@@ -1,10 +1,13 @@
 /**
- * Settings: what to track, steps (goal, stride, phone sensor), AI Coach (Gemini key),
+ * Settings (opened from the gear on Today): what to track, your plan (goal + optional Health
+ * Connect sharing), connect apps, steps (goal, stride, phone sensor), AI Coach (Gemini key),
  * Health Connect (optional), connected apps checklist (optional), your data (export/delete),
  * demo mode and privacy.
  */
 import { router } from 'expo-router';
 import {
+  ChevronLeft,
+  ChevronRight,
   CircleAlert,
   CircleCheck,
   Database,
@@ -23,9 +26,10 @@ import {
   Store,
   Target,
   Trash2,
+  Plug,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
-import { Alert, AppState as RNAppState, Switch, TextInput, View } from 'react-native';
+import { Alert, Pressable, AppState as RNAppState, Switch, TextInput, View } from 'react-native';
 import { useCoach } from '../../ai/CoachState';
 import { clearSummaryCache } from '../../ai/summary';
 import { Screen } from '../../components/Screen';
@@ -57,6 +61,9 @@ import {
 } from '../../state/AppState';
 import { fonts, radius, space } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
+import { planGranted, requestPlanPermissions, type PlanPermission } from '../../plan/hc';
+import { loadPlanSettings, savePlanSettings, type PlanSettings } from '../../plan/store';
+import { touch } from '../../theme/tokens';
 
 export default function SettingsScreen() {
   const { c } = useTheme();
@@ -79,11 +86,25 @@ export default function SettingsScreen() {
 
   return (
     <Screen refreshing={refreshing} onRefresh={onRefresh}>
-      <Text variant="display" accessibilityRole="header">
-        Settings
-      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+        <IconButton
+          icon={ChevronLeft}
+          accessibilityLabel="Back"
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+        />
+        <Text variant="display" accessibilityRole="header" style={{ flex: 1 }}>
+          Settings
+        </Text>
+      </View>
 
       <TracksCard />
+      <PlanCard />
+      <NavRow
+        icon={Plug}
+        title="Connect apps"
+        body="Health Connect, Google Fit, a watch or Flo — step by step"
+        onPress={() => router.push('/connect')}
+      />
       <StepsCard />
       <CoachCard />
       <HealthConnectCard />
@@ -130,8 +151,8 @@ export default function SettingsScreen() {
           <View style={{ flex: 1, gap: 4 }}>
             <Text variant="bodyStrong">Your data stays on this phone</Text>
             <Text>
-              Everything you log is stored only on this phone. Health Connect is read-only and on-device. There’s no
-              account, no server and no analytics. The only thing that ever leaves the phone is what you send to the
+              Everything you log is stored only on this phone. Health Connect is on-device; Bloom only writes to it if you
+              turn that on under Your plan. There’s no account, no server and no analytics. The only thing that ever leaves the phone is what you send to the
               optional AI coach (your question plus a data summary, to Google).
             </Text>
           </View>
@@ -177,6 +198,120 @@ function TracksCard() {
           />
         ))}
       </ChipRow>
+    </Card>
+  );
+}
+
+/* ---------------------------------- Plan ---------------------------------- */
+
+function NavRow({ icon: Icon, title, body, onPress }: { icon: typeof Plug; title: string; body: string; onPress: () => void }) {
+  const { c } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityHint={body}
+      android_ripple={{ color: c.line }}
+      style={({ pressed }) => ({
+        minHeight: touch.min + 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space.sm,
+        padding: space.md,
+        borderRadius: radius.card,
+        backgroundColor: c.surface,
+        borderWidth: 1,
+        borderColor: c.line,
+        opacity: pressed ? 0.85 : 1,
+      })}
+    >
+      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: c.spo2Soft, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon size={20} color={c.spo2} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text variant="bodyStrong">{title}</Text>
+        <Text variant="caption" tone="muted">
+          {body}
+        </Text>
+      </View>
+      <ChevronRight size={20} color={c.muted} />
+    </Pressable>
+  );
+}
+
+const PLAN_TOGGLES: { key: keyof PlanSettings; perm: PlanPermission; title: string; body: string }[] = [
+  { key: 'hcReadWeight', perm: 'read:Weight', title: 'Read weight from Health Connect', body: 'From a smart scale or Google Health. Shown with its source.' },
+  { key: 'hcWriteWeight', perm: 'write:Weight', title: 'Save my weights to Health Connect', body: 'So other apps can see weights you log in Bloom.' },
+  { key: 'hcWriteNutrition', perm: 'write:Nutrition', title: 'Save meals to Health Connect', body: 'Each food you log, as a nutrition record.' },
+  { key: 'hcWriteExercise', perm: 'write:ExerciseSession', title: 'Save workouts to Health Connect', body: 'Activities and yoga sessions you log in Bloom.' },
+];
+
+function PlanCard() {
+  const { c } = useTheme();
+  const app = useAppState();
+  const [s, setS] = useState<PlanSettings | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    loadPlanSettings()
+      .then(setS)
+      .catch(() => {});
+  }, []);
+  const hcReady = app.availability === 'available' && !app.demoMode;
+
+  const toggle = async (key: keyof PlanSettings, perm: PlanPermission, on: boolean) => {
+    setMsg(null);
+    if (!on) {
+      setS(await savePlanSettings({ [key]: false }));
+      return;
+    }
+    // Ask Health Connect only now, only for this one permission.
+    const have = await planGranted();
+    const ok = have.has(perm) || (await requestPlanPermissions([perm]));
+    if (!ok) {
+      setMsg('Health Connect didn’t allow that. You can allow it in Health Connect → App permissions → Bloom.');
+      return;
+    }
+    setS(await savePlanSettings({ [key]: true }));
+    app.bump();
+  };
+
+  return (
+    <Card>
+      <CardHeader icon={Target} label="Your plan" accent={c.cycle} soft={c.cycleSoft} />
+      <Button label="Edit goal and profile" variant="secondary" icon={Target} onPress={() => router.push('/onboarding/profile?edit=1')} />
+      <Text variant="bodyStrong" style={{ marginTop: space.md }}>
+        Health Connect sharing (optional)
+      </Text>
+      <Text variant="caption" tone="muted" style={{ marginBottom: space.xs }}>
+        {hcReady
+          ? 'Off by default. Bloom asks Health Connect for permission only when you turn one on.'
+          : 'Needs Health Connect on this phone (and demo mode off).'}
+      </Text>
+      {PLAN_TOGGLES.map((t) => (
+        <View key={t.key} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 56, borderTopWidth: 1, borderTopColor: c.line }}>
+          <View style={{ flex: 1 }}>
+            <Text>{t.title}</Text>
+            <Text variant="caption" tone="muted">
+              {t.body}
+            </Text>
+          </View>
+          <Switch
+            value={!!s?.[t.key]}
+            disabled={!hcReady || !s}
+            onValueChange={(v) => void toggle(t.key, t.perm, v)}
+            accessibilityLabel={t.title}
+            trackColor={{ false: c.line, true: c.cycle }}
+            thumbColor={c.surface}
+            style={{ minWidth: 48, minHeight: 48 }}
+          />
+        </View>
+      ))}
+      {msg ? (
+        <Text tone="danger" variant="caption" accessibilityLiveRegion="polite">
+          {msg}
+        </Text>
+      ) : null}
     </Card>
   );
 }
@@ -538,7 +673,7 @@ function DataCard() {
   const onDelete = () => {
     Alert.alert(
       'Delete all your data?',
-      'This permanently deletes every period, day log, sleep log, reading and step count saved in Bloom on this phone. Data in Health Connect, Flo or other apps is not touched. This can’t be undone.',
+      'This permanently deletes every period, day log, sleep log, reading, step count, weight, food, activity and your plan saved in Bloom on this phone. Data in Health Connect, Flo or other apps is not touched. This can’t be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
