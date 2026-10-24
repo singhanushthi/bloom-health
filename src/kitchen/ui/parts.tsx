@@ -164,20 +164,31 @@ export function HealthCheckCard({ check }: { check: HealthCheck }) {
 
 /* ------------------------------- Recipe card ---------------------------- */
 
-export function recipeA11y(r: Recipe, m?: RecipeMatch | null): string {
-  const have = m ? (m.missing.length ? `Missing ${m.missing.map((x) => x.name).join(', ')}.` : 'You have everything.') : '';
+export function recipeA11y(r: Recipe, m?: RecipeMatch | null, showPantry = true): string {
+  const have = m && showPantry ? (m.missing.length ? `Missing ${m.missing.map((x) => x.name).join(', ')}.` : 'You have everything.') : '';
   return `${r.title}. ${r.timeMin} minutes. About ${r.perServing.kcal} kilocalories and ${Math.round(r.perServing.protein)} grams protein per serving. ${have} ${m?.fitNote ?? ''}`.trim();
 }
 
-export function RecipeCard({ recipe, match, showFit = true }: { recipe: Recipe; match?: RecipeMatch | null; showFit?: boolean }) {
+export function RecipeCard({
+  recipe,
+  match,
+  showFit = true,
+  showPantry = true,
+}: {
+  recipe: Recipe;
+  match?: RecipeMatch | null;
+  showFit?: boolean;
+  /** Show have/need (off when the kitchen is empty). */
+  showPantry?: boolean;
+}) {
   const { c } = useTheme();
   const f = useFoodColors();
-  const missing = match?.missing ?? null;
+  const missing = showPantry ? (match?.missing ?? null) : null;
   return (
     <Pressable
       onPress={() => router.push(`/kitchen/recipe/${encodeURIComponent(recipe.id)}`)}
       accessibilityRole="button"
-      accessibilityLabel={recipeA11y(recipe, match)}
+      accessibilityLabel={recipeA11y(recipe, match, showPantry)}
       accessibilityHint="Opens the recipe"
       android_ripple={{ color: c.line }}
       style={({ pressed }) => ({
