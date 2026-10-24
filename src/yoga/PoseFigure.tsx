@@ -194,6 +194,50 @@ export const FIGURES: Record<string, Figure> = {
     head: [12, 83], neck: [22, 85], hip: [52, 86],
     le: [36, 88], lh: [48, 89], lk: [70, 86], lf: [88, 85],
   }),
+  puppy: side({
+    head: [26, 84], neck: [34, 80], mid: [48, 70], hip: [62, 60],
+    le: [20, 86], lh: [10, 89], lk: [62, 88], lf: [82, 89],
+  }),
+  prone: side({
+    head: [16, 81], neck: [25, 85], hip: [56, 86],
+    le: [20, 88], lh: [12, 87], lk: [72, 88], lf: [88, 88],
+  }),
+  locust: side({
+    head: [22, 73], neck: [30, 78], mid: [42, 84], hip: [56, 86],
+    le: [44, 81], lh: [56, 78], lk: [72, 82], lf: [88, 76],
+  }),
+  kneelSit: side({
+    head: [55, 37], neck: [55, 48], hip: [56, 80],
+    le: [53, 64], lh: [42, 79], lk: [34, 86], lf: [62, 89],
+  }),
+  happyBaby: side({
+    head: [14, 84], neck: [24, 84], hip: [56, 84],
+    le: [44, 68], lh: [60, 52], lk: [50, 62], lf: [62, 48],
+  }),
+  reclinedBound: {
+    head: [14, 83], neck: [24, 84], hip: [56, 85],
+    le: [36, 88], lh: [48, 89], re: [36, 88], rh: [48, 89],
+    lk: [64, 70], lf: [60, 87], rk: [70, 76], rf: [62, 88],
+  },
+  garland: {
+    head: [50, 34], neck: [50, 45], hip: [50, 74],
+    le: [40, 62], lh: [50, 56], re: [60, 62], rh: [50, 56],
+    lk: [30, 66], lf: [38, 90], rk: [70, 66], rf: [62, 90],
+  },
+  sideAngle: {
+    head: [78, 40], neck: [70, 46], hip: [50, 64],
+    le: [56, 34], lh: [42, 24], re: [70, 58], rh: [70, 67],
+    lk: [36, 76], lf: [20, 90], rk: [72, 68], rf: [80, 90],
+  },
+  lowPlank: side({
+    head: [22, 73], neck: [30, 77], hip: [58, 79],
+    le: [40, 80], lh: [32, 90], lk: [72, 83], lf: [88, 87],
+  }),
+  warrior3: {
+    head: [24, 50], neck: [32, 52], hip: [56, 54],
+    le: [20, 52], lh: [8, 52], re: [20, 52], rh: [8, 52],
+    lk: [56, 72], lf: [56, 90], rk: [72, 54], rf: [88, 53],
+  },
   pigeon: {
     head: [46, 30], neck: [46, 41], hip: [48, 72],
     le: [40, 58], lh: [36, 88], re: [56, 58], rh: [62, 88],
@@ -242,7 +286,61 @@ const MATCHERS: [RegExp, keyof typeof FIGURES][] = [
   [/mountain|tadasana|samasthiti|standing/, 'mountain'],
 ];
 
+/** Explicit figures for Bloom's pose ids (checked before the keyword matchers). */
+const BY_ID: Record<string, keyof typeof FIGURES> = {
+  mountain: 'mountain',
+  prayer: 'prayer',
+  'upward-salute': 'raisedArms',
+  'standing-side-bend': 'sideBend',
+  'standing-forward-fold': 'forwardFold',
+  'half-forward-lift': 'halfLift',
+  chair: 'chair',
+  tree: 'tree',
+  'warrior-1': 'warrior1',
+  'warrior-2': 'warrior2',
+  triangle: 'triangle',
+  'low-lunge': 'lowLunge',
+  'cat-cow': 'cat',
+  child: 'child',
+  puppy: 'puppy',
+  'downward-dog': 'downDog',
+  plank: 'plank',
+  'knees-chest-chin': 'kneesChestChin',
+  cobra: 'cobra',
+  sphinx: 'sphinx',
+  crocodile: 'prone',
+  'easy-pose': 'easySeat',
+  thunderbolt: 'kneelSit',
+  'seated-easy-twist': 'seatedTwist',
+  butterfly: 'butterfly',
+  'seated-forward-fold': 'seatedFold',
+  'head-to-knee': 'seatedFold',
+  'knees-to-chest': 'kneesToChest',
+  'wind-relieving': 'kneesToChest',
+  'supine-twist': 'supineTwist',
+  bridge: 'bridge',
+  'happy-baby': 'happyBaby',
+  'reclined-bound-angle': 'reclinedBound',
+  'legs-up-the-wall': 'legsUp',
+  shavasana: 'rest',
+  'belly-breathing': 'easySeat',
+  'anulom-vilom': 'easySeat',
+  bhramari: 'easySeat',
+  kapalbhati: 'easySeat',
+  'crescent-lunge': 'crescentLunge',
+  'extended-side-angle': 'sideAngle',
+  goddess: 'goddess',
+  garland: 'garland',
+  boat: 'boat',
+  locust: 'locust',
+  pigeon: 'pigeon',
+  'half-lord-of-fishes': 'seatedTwist',
+  'low-plank': 'lowPlank',
+  'warrior-3': 'warrior3',
+};
+
 export function figureKeyFor(pose: Pick<YogaPose, 'id' | 'name' | 'sanskrit'>): keyof typeof FIGURES | null {
+  if (BY_ID[pose.id]) return BY_ID[pose.id];
   const hay = `${pose.id} ${pose.name} ${pose.sanskrit}`.toLowerCase().replace(/[-_]/g, ' ');
   for (const [re, key] of MATCHERS) if (re.test(hay)) return key;
   return null;
