@@ -142,7 +142,7 @@ export default function CycleScreen() {
             icon={result.status === 'denied' ? Lock : CircleAlert}
             accent={c.cycle}
             title={result.status === 'denied' ? 'Permission needed' : 'Couldn’t read cycle data'}
-            body={result.status === 'denied' ? 'Allow Menstruation in Settings → Health Connect.' : `Pull down to retry. ${result.error ?? ''}`}
+            body={result.status === 'denied' ? 'Allow Menstruation from Settings → Connect apps & watch → Health Connect.' : `Pull down to retry. ${result.error ?? ''}`}
           />
         </Card>
       );

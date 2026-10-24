@@ -11,6 +11,21 @@
 
 export const KEY_PREFIXES = ['AQ.', 'AIza'] as const;
 
+/** Thrown by AI features when no key is saved. The UI shows a "Set up AI Coach" button for it. */
+export class MissingAiKeyError extends Error {
+  readonly code = 'no-key' as const;
+}
+
+/**
+ * Does this error mean the user has to (re)do AI Coach setup? True for a missing key and for a key
+ * Google rejected (GeminiError kind "auth"). Duck-typed so this module doesn't import gemini.ts.
+ */
+export function needsAiSetup(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false;
+  const o = e as { code?: unknown; kind?: unknown };
+  return o.code === 'no-key' || o.kind === 'auth';
+}
+
 /** Trim whitespace only (pasting often adds a newline or spaces). */
 export function normalizeKey(raw: string): string {
   return raw.trim();
@@ -27,6 +42,45 @@ export function checkKeyFormat(raw: string): KeyCheck {
     return { ok: false, error: 'Gemini keys start with “AQ.” or “AIza”. Copy the whole key from AI Studio.' };
   if (key.length < 20) return { ok: false, error: 'That key looks too short — copy the whole key.' };
   return { ok: true, key };
+}
+
+/**
+ * Clean text pasted from the clipboard: trims whitespace and strips surrounding quotes
+ * ("…", '…', `…`, “…”, ‘…’) that notes apps and chats often add. Never logged.
+ */
+export function cleanPastedKey(raw: string): string {
+  let s = raw.trim();
+  for (let i = 0; i < 2; i++) {
+    const m = /^["'`“”‘’]+([\s\S]*?)["'`“”‘’]+$/.exec(s);
+    if (!m) break;
+    s = m[1].trim();
+  }
+  return s;
+}
+
+/**
+ * Lenient check for the key screen. Blocks only what can never work (empty, spaces inside);
+ * an unknown prefix or a short key gets a gentle warning but can still be tried.
+ */
+export type KeyInspection =
+  | { level: 'empty' }
+  | { level: 'error'; message: string }
+  | { level: 'warn'; message: string }
+  | { level: 'ok'; format: 'AQ.' | 'AIza' };
+
+export function inspectKey(raw: string): KeyInspection {
+  // Same cleaning Save & test applies, so a key pasted by long-press with quotes isn't flagged.
+  const key = cleanPastedKey(raw);
+  if (!key) return { level: 'empty' };
+  if (/\s/.test(key)) return { level: 'error', message: 'The key has a space or line break in it. Copy it again from AI Studio.' };
+  const prefix = KEY_PREFIXES.find((p) => key.startsWith(p));
+  if (!prefix)
+    return {
+      level: 'warn',
+      message: 'Gemini keys usually start with “AQ.” or “AIza”. You can still try this one.',
+    };
+  if (key.length < 20) return { level: 'warn', message: 'This key looks short. Make sure you copied all of it.' };
+  return { level: 'ok', format: prefix };
 }
 
 /** "…wxyz" — the only part of the key ever shown on screen after saving. */

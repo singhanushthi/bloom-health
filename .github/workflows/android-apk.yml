@@ -139,7 +139,7 @@ jobs:
           if [ "$SIGNING" = "debug-key" ]; then
             NOTES="${NOTES}
 
-          ⚠️ Signed with the public debug key (signing secrets not set). If Android refuses to update, uninstall the old version first — that deletes Bloom's data, so export it in Settings → Your data before you do."
+          ⚠️ Signed with the public debug key (signing secrets not set). If Android refuses to update, uninstall the old version first — that deletes Bloom's data, so export it in Settings → Data & privacy before you do."
           fi
           # Re-runs / pushes without a version bump update the same release: the APK asset is
           # replaced (--clobber). The tag itself keeps pointing at the first commit for this

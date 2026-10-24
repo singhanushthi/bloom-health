@@ -380,7 +380,15 @@ export async function testKey(
     models?: ModelSpec[];
     authMode?: AuthMode | null;
   } = {}
-): Promise<{ result: 'ok' | 'bad-key' | 'network' | 'error'; model?: string; authMode?: AuthMode }> {
+): Promise<{
+  result: 'ok' | 'bad-key' | 'network' | 'error';
+  model?: string;
+  authMode?: AuthMode;
+  /** true when Google accepted the key but every model is out of free quota right now. */
+  quota?: boolean;
+  /** For result 'error': what went wrong (e.g. 'overloaded'), so the UI can say something specific. */
+  errorKind?: ErrorKind;
+}> {
   try {
     const r = await generate({
       key,
@@ -396,8 +404,9 @@ export async function testKey(
   } catch (e) {
     if (e instanceof GeminiError) {
       if (e.kind === 'auth') return { result: 'bad-key' };
-      if (e.kind === 'quota') return { result: 'ok', authMode: e.authMode };
+      if (e.kind === 'quota') return { result: 'ok', authMode: e.authMode, quota: true };
       if (e.kind === 'network') return { result: 'network' };
+      return { result: 'error', errorKind: e.kind };
     }
     return { result: 'error' };
   }

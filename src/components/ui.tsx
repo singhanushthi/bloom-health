@@ -56,9 +56,7 @@ export function Card({
         {
           backgroundColor: tint ?? c.surface,
           borderRadius: radius.card,
-          padding: space.md + 4,
-          borderWidth: 1,
-          borderColor: tint ? 'transparent' : c.line,
+          padding: space.md + space.xxs,
         },
         shadow(c),
         style,
@@ -271,7 +269,14 @@ export function Segmented<T extends string | number>({
               opacity: pressed ? 0.8 : 1,
             })}
           >
-            <Text variant={selected ? 'bodyStrong' : 'body'} tone={selected ? 'ink' : 'muted'}>
+            <Text
+              variant={selected ? 'bodyStrong' : 'body'}
+              tone={selected ? 'ink' : 'muted'}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+              style={{ paddingHorizontal: space.xxs }}
+            >
               {o.label}
             </Text>
           </Pressable>
@@ -392,5 +397,234 @@ export function SectionTitle({ children, style }: { children: React.ReactNode; s
     <Text variant="title" accessibilityRole="header" style={[{ marginBottom: space.sm }, style]}>
       {children}
     </Text>
+  );
+}
+
+/* ---------------------------- Section header ---------------------------- */
+
+/**
+ * Small-caps section label (13 px, muted) with an optional right-hand action.
+ * Used to divide long screens into calm, scannable sections.
+ */
+export function SectionHeader({
+  label,
+  action,
+  style,
+}: {
+  label: string;
+  action?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View style={[{ flexDirection: 'row', alignItems: 'center', minHeight: 32, marginTop: space.xs }, style]}>
+      <Text
+        variant="label"
+        tone="muted"
+        accessibilityRole="header"
+        style={{ flex: 1, textTransform: 'uppercase', letterSpacing: 1 }}
+      >
+        {label}
+      </Text>
+      {action}
+    </View>
+  );
+}
+
+/* ------------------------------ Text button ----------------------------- */
+
+/** Low-emphasis text action ("Log weight", "See all"). ≥44 px tall, no border. */
+export function TextButton({
+  label,
+  onPress,
+  icon: Icon,
+  accessibilityLabel,
+  accessibilityHint,
+  accessibilityState,
+  style,
+}: {
+  label: string;
+  onPress: () => void;
+  icon?: LucideIcon;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
+  accessibilityState?: PressableProps['accessibilityState'];
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { c } = useTheme();
+  const [focused, setFocused] = useState(false);
+  return (
+    <Pressable
+      onPress={onPress}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={accessibilityState}
+      hitSlop={4}
+      android_ripple={{ color: c.line }}
+      style={({ pressed }) => [
+        {
+          minHeight: touch.min,
+          minWidth: touch.min,
+          flexDirection: 'row',
+          alignItems: 'center',
+          alignSelf: 'flex-start',
+          gap: 6,
+          paddingHorizontal: space.xs,
+          marginHorizontal: -space.xs,
+          borderRadius: radius.chip,
+          borderWidth: focused ? 2 : 0,
+          borderColor: c.focus,
+          opacity: pressed ? 0.6 : 1,
+        },
+        style,
+      ]}
+    >
+      {Icon ? <Icon size={18} color={c.ink} /> : null}
+      <Text variant="bodyStrong" style={{ textDecorationLine: 'underline', textDecorationColor: c.line }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+/* ------------------------------- Stat tile ------------------------------ */
+
+/** Small tappable stat: icon + label on top, big serif number, short muted sub-line. */
+export function StatTile({
+  icon: Icon,
+  label,
+  value,
+  unit,
+  sub,
+  accent,
+  soft,
+  onPress,
+  accessibilityLabel,
+  accessibilityHint,
+  style,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  unit?: string;
+  sub?: string;
+  accent: string;
+  soft: string;
+  onPress: () => void;
+  accessibilityLabel: string;
+  accessibilityHint?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { c } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
+      android_ripple={{ color: c.line }}
+      style={({ pressed }) => [
+        {
+          backgroundColor: c.surface,
+          borderRadius: radius.card - 4,
+          padding: space.md,
+          minHeight: 112,
+          overflow: 'hidden',
+          opacity: pressed ? 0.85 : 1,
+          transform: [{ scale: pressed ? 0.98 : 1 }],
+        },
+        shadow(c),
+        style,
+      ]}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <View
+          style={{ width: 24, height: 24, borderRadius: 8, backgroundColor: soft, alignItems: 'center', justifyContent: 'center' }}
+        >
+          <Icon size={14} color={accent} strokeWidth={2.4} />
+        </View>
+        <Text variant="label" tone="muted" numberOfLines={1} style={{ flex: 1, textTransform: 'uppercase' }}>
+          {label}
+        </Text>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: space.xs }}>
+        <Text variant="displaySm" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ flexShrink: 1 }}>
+          {value}
+        </Text>
+        {unit ? (
+          <Text variant="caption" tone="muted">
+            {unit}
+          </Text>
+        ) : null}
+      </View>
+      {sub ? (
+        <Text variant="caption" tone="muted" numberOfLines={2}>
+          {sub}
+        </Text>
+      ) : null}
+    </Pressable>
+  );
+}
+
+/* ----------------------------- Quick action ----------------------------- */
+
+/** Round icon button with a label underneath (Quick log row). */
+export function QuickAction({
+  icon: Icon,
+  label,
+  accent,
+  soft,
+  onPress,
+  accessibilityLabel,
+  accessibilityHint,
+}: {
+  icon: LucideIcon;
+  label: string;
+  accent: string;
+  soft: string;
+  onPress: () => void;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
+}) {
+  const { c } = useTheme();
+  const [focused, setFocused] = useState(false);
+  return (
+    <Pressable
+      onPress={onPress}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityHint={accessibilityHint}
+      style={({ pressed }) => ({
+        flex: 1,
+        minWidth: touch.min,
+        alignItems: 'center',
+        gap: 6,
+        paddingVertical: space.xxs,
+        opacity: pressed ? 0.7 : 1,
+        transform: [{ scale: pressed ? 0.96 : 1 }],
+      })}
+    >
+      <View
+        style={{
+          width: 52,
+          height: 52,
+          borderRadius: 26,
+          backgroundColor: soft,
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderWidth: focused ? 3 : 0,
+          borderColor: c.focus,
+        }}
+      >
+        <Icon size={22} color={accent} strokeWidth={2.2} />
+      </View>
+      <Text variant="caption" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={{ fontSize: 12 }}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }

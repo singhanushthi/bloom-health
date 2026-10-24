@@ -65,6 +65,11 @@ function Root() {
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="coach" options={{ animation: 'slide_from_right' }} />
+        {/* Settings hub + sub-pages (own stack). Back from the hub returns to Today. */}
+        <Stack.Screen name="settings" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        {/* Connect apps list + per-app setup wizard (plain stack routes, never tabs). */}
+        <Stack.Screen name="connect/index" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="connect/[appId]" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </>
   );

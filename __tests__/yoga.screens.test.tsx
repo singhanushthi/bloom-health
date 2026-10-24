@@ -90,8 +90,9 @@ it('plays a session: safety note, get ready, pose', async () => {
 
 it('renders Connect your apps with demo origins', async () => {
   await render(wrap(<Connect />));
-  expect(await screen.findByText('Connect your apps', {}, find)).toBeTruthy();
-  expect(await screen.findAllByText('Sharing with Bloom', {}, find)).toBeTruthy();
+  expect(await screen.findByText('Connect apps & watch', {}, find)).toBeTruthy();
+  expect(await screen.findAllByText('Connected ✓', {}, find)).toBeTruthy();
+  await fireEvent.press(screen.getByText(/^Show \d+ more apps$/));
   expect(screen.getByText('Huawei Health')).toBeTruthy();
-  expect(screen.getByText('Data stays on this phone.')).toBeTruthy();
+  expect(screen.getByText(/Your data stays on this phone\./)).toBeTruthy();
 });

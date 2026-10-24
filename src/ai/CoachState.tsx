@@ -5,13 +5,42 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { generate, GeminiError, testKey, type AuthMode, type ChatTurn, type GenerateResult } from './gemini';
-import { checkKeyFormat, loadKey, maskKey, removeKey as removeStoredKey, saveKey } from './key';
+import { cleanPastedKey, inspectKey, loadKey, maskKey, MissingAiKeyError, removeKey as removeStoredKey, saveKey } from './key';
 
 const MODEL_KEY = 'bloom.gemini.lastModel';
 /** 'header' | 'query' — how the key was last accepted. Not secret (never the key itself). */
 const AUTH_MODE_KEY = 'bloom.gemini.authMode';
 
-export type SaveOutcome = { ok: true; message: string } | { ok: false; message: string };
+/**
+ * What happened when a key was saved and tested. `message` says what happened, `next` is one
+ * plain next step. Keys are never part of either.
+ */
+export type SaveKind =
+  | 'ok'
+  /** Google accepted the key, but the free limit is used up right now (key is saved). */
+  | 'ok-quota'
+  | 'format'
+  | 'invalid'
+  /** An AQ. key was rejected in the header AND as ?key= (the auth fallback). */
+  | 'aq-rejected'
+  | 'offline'
+  | 'busy'
+  | 'storage'
+  | 'error';
+
+export type SaveOutcome = { ok: boolean; kind: SaveKind; message: string; next?: string };
+
+/** 'gemini-3.8-flash' → 'Gemini 3.8 Flash'. */
+export function modelLabel(id: string | null | undefined): string | null {
+  if (!id) return null;
+  return id
+    .split('-')
+    .map((w) => (w === 'lite' ? 'Lite' : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(' ')
+    .replace('Flash Lite', 'Flash-Lite');
+}
+
+export const RESET_HINT = 'The free limit resets around 12:30–1:30 pm IST.';
 
 interface CoachValue {
   ready: boolean;
@@ -59,22 +88,51 @@ export function CoachProvider({ children }: { children: React.ReactNode }) {
 
   const saveAndTestKey = useCallback(
     async (raw: string): Promise<SaveOutcome> => {
-      const f = checkKeyFormat(raw);
-      if (!f.ok) return { ok: false, message: f.error };
-      // A new key starts from the documented header mode; generate() switches if needed.
-      const r = await testKey(f.key, { lastWorkingModel: lastModel, authMode: 'header' });
-      if (r.result === 'bad-key') return { ok: false, message: 'Google didn’t accept that key' };
-      if (r.result === 'network') return { ok: false, message: 'Couldn’t reach Google — check your internet and try again' };
-      if (r.result === 'error') return { ok: false, message: 'Google didn’t accept that key' };
+      const check = inspectKey(raw);
+      if (check.level === 'empty') return { ok: false, kind: 'format', message: 'Paste your key first.', next: 'Tap Paste, or long-press the box and choose Paste.' };
+      if (check.level === 'error') return { ok: false, kind: 'format', message: check.message, next: 'Open AI Studio, tap the copy icon next to your key, then tap Paste here.' };
+      const key = cleanPastedKey(raw);
+      // A new key starts from the documented header mode; generate() falls back to ?key= on an auth error.
+      const r = await testKey(key, { lastWorkingModel: lastModel, authMode: 'header' });
+      if (r.result === 'bad-key') {
+        return key.startsWith('AQ.')
+          ? {
+              ok: false,
+              kind: 'aq-rejected',
+              message: 'Google didn’t accept this new “AQ.” key (Bloom tried both ways of sending it).',
+              next: 'New keys can take a minute to work. Wait a minute, then tap Save & test again. Still failing? Create a new key in AI Studio and paste that.',
+            }
+          : {
+              ok: false,
+              kind: 'invalid',
+              message: 'Google says this key isn’t valid.',
+              next: 'Copy the whole key again from AI Studio, or create a new one, then paste it here.',
+            };
+      }
+      if (r.result === 'network')
+        return { ok: false, kind: 'offline', message: 'Couldn’t reach Google. You seem to be offline.', next: 'Check your Wi-Fi or mobile data, then tap Save & test again.' };
+      if (r.result === 'error') {
+        if (r.errorKind === 'overloaded')
+          return { ok: false, kind: 'busy', message: 'Google’s AI is busy right now.', next: 'Wait a minute, then tap Save & test again.' };
+        return { ok: false, kind: 'error', message: 'Google couldn’t check this key.', next: 'Try again in a minute. If it keeps failing, create a new key in AI Studio.' };
+      }
       try {
-        await saveKey(f.key);
+        await saveKey(key);
       } catch (e) {
-        return { ok: false, message: e instanceof Error ? e.message : 'Couldn’t save the key on this phone' };
+        return {
+          ok: false,
+          kind: 'storage',
+          message: e instanceof Error && e.message ? `Couldn’t save the key on this phone: ${e.message}` : 'Couldn’t save the key on this phone.',
+          next: 'Close Bloom completely, open it again and retry.',
+        };
       }
       if (r.model) rememberModel(r.model);
       rememberAuth(r.authMode);
-      setKey(f.key);
-      return { ok: true, message: 'AI coach turned on' };
+      setKey(key);
+      if (r.quota)
+        return { ok: true, kind: 'ok-quota', message: 'Key saved. Google says today’s free limit is used up for now.', next: `AI Coach will answer again once it resets. ${RESET_HINT}` };
+      const name = modelLabel(r.model ?? lastModel);
+      return { ok: true, kind: 'ok', message: name ? `AI Coach is on. Using ${name}.` : 'AI Coach is on.' };
     },
     [lastModel, rememberModel, rememberAuth]
   );
@@ -88,7 +146,7 @@ export function CoachProvider({ children }: { children: React.ReactNode }) {
 
   const ask = useCallback<CoachValue['ask']>(
     async (o) => {
-      if (!key) throw new Error('Add your Gemini key in Settings → AI Coach first.');
+      if (!key) throw new MissingAiKeyError('Set up AI Coach first. It’s free and takes about a minute.');
       try {
         const r = await generate({ key, lastWorkingModel: lastModel, authMode, maxOutputTokens: 1024, ...o });
         if (r.model !== lastModel) rememberModel(r.model);

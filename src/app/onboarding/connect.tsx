@@ -50,7 +50,8 @@ export default function Connect() {
       if (wantsSteps && !g.includes('Steps') && sensor.permission === 'undetermined') await sensor.request().catch(() => {});
       router.push('/onboarding/done');
     } catch (e) {
-      setError(`Couldn't open the Health Connect permission sheet. You can try again later in Settings.`);
+      const why = e instanceof Error && e.message ? `${e.message} ` : 'Couldn’t open the Health Connect permission sheet. ';
+      setError(`${why}You can try again later from Settings → Connect apps & watch.`);
     } finally {
       setBusy(false);
     }

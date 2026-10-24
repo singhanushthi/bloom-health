@@ -303,6 +303,7 @@ function StaplesTab({ have, onAdd }: { have: Set<string>; onAdd: (keys: string[]
           await onAdd(Array.from(picked));
           setPicked(new Set());
           if (router.canGoBack()) router.back();
+          else router.replace('/kitchen');
         }}
       />
       <Text variant="caption" tone="muted">

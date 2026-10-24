@@ -77,7 +77,7 @@ export default function TrendsScreen() {
             title={result.status === 'denied' ? 'Permission needed' : "Couldn't load trends"}
             body={
               result.status === 'denied'
-                ? 'Allow Steps, Sleep and Resting heart rate in Settings → Manage permissions.'
+                ? 'Allow Steps, Sleep and Resting heart rate from Settings → Connect apps & watch → Health Connect.'
                 : `Pull down to retry. ${result.error ?? ''}`
             }
           />

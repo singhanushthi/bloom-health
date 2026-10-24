@@ -180,8 +180,8 @@ function AiCard({ hasKey, disabled }: { hasKey: boolean; disabled: boolean }) {
         </>
       ) : (
         <>
-          <Text tone="muted">Optional: add your free Gemini key in Settings → AI Coach to get AI recipe ideas from your kitchen.</Text>
-          <Button label="Open Settings" variant="secondary" onPress={() => router.push('/settings')} style={{ marginTop: space.sm }} />
+          <Text tone="muted">Optional: set up AI Coach (free, about a minute) to get AI recipe ideas from your kitchen.</Text>
+          <Button label="Set up AI Coach" variant="secondary" onPress={() => router.push('/settings/ai')} accessibilityHint="Opens AI Coach setup" style={{ marginTop: space.sm }} />
         </>
       )}
     </Card>

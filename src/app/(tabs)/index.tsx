@@ -1,34 +1,41 @@
 /**
- * Today dashboard. Shows only the areas chosen in onboarding/settings, a small "Ask Bloom"
- * card (AI coach), compact plan cards (weight, food, activity), today's yoga, today in your cycle,
- * a direct-watch status chip (only once a watch was paired), and one floating
- * "Log" button that opens the action sheet. Settings opens from the gear in the header.
+ * Today: a calm, glanceable dashboard with one obvious way to log.
+ *
+ *   Header        date, greeting, Settings gear
+ *   At a glance   Steps · Food · Water · Weight tiles (each opens its detail)
+ *   Quick log     round buttons: Weight, Food, Water +1 (instant, with undo), Activity, Period, Sleep
+ *   Sections      Your cycle · Today's yoga · Move · Sleep & heart · Ask Bloom
+ *   Customise     hide/show sections (stored on the phone in the kv table)
+ *
+ * Sections respect "What you track" (Settings) and "Hide cycle data on Today".
  */
 import { router, useFocusEffect } from 'expo-router';
-import { ChevronRight, Settings, Sparkles } from 'lucide-react-native';
+import { Settings, SlidersHorizontal } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, View } from 'react-native';
-import { ActivityCard, HeartCard, SleepCard, Spo2Card } from '../../components/cards';
+import { View } from 'react-native';
 import { DemoBanner } from '../../components/DemoBanner';
 import { Screen } from '../../components/Screen';
-import { LogFab } from '../../components/sheets/LogSheets';
-import { IconButton, Text } from '../../components/ui';
+import { useLogSheets } from '../../components/sheets/LogSheets';
+import { AskBloomCard, CustomiseTodaySheet, GlanceGrid, MoveCard, QuickLogRow, SleepHeartCard } from '../../components/today';
+import { Toast, type ToastMsg } from '../../components/Toast';
+import { IconButton, SectionHeader, Text, TextButton } from '../../components/ui';
+import { useTodayHidden, type TodaySectionId } from '../../components/usePref';
+import { useCycleSettings } from '../../cycle/hooks';
 import { TodayCycleCard } from '../../cycle/TodayCycleCard';
-import {
-  getActivityToday,
-  getHeartToday,
-  getLastNightSleep,
-  getLatestSpo2,
-} from '../../health';
+import { water } from '../../db/repos';
+import { getActivityToday, getHeartToday, getLastNightSleep, getLatestSpo2 } from '../../health';
+import { todayKey } from '../../health/dates';
 import { useMetric } from '../../hooks/useMetric';
+import { setWater } from '../../plan/actions';
 import { usePlan } from '../../plan/usePlan';
-import { ActivityTodayCard, FoodTodayCard, PlanSetupCard, WeightTodayCard } from '../../plan/ui/TodayCards';
-import { TodayYogaCard } from '../../yoga/TodayYogaCard';
+import { PlanSetupCard } from '../../plan/ui/TodayCards';
 import { useStepSensor } from '../../sensors/StepSensor';
 import { useAppState } from '../../state/AppState';
+import { space } from '../../theme/tokens';
 import { WatchStatusChip } from '../../watch/components';
-import { radius, space, touch } from '../../theme/tokens';
-import { useTheme } from '../../theme/useTheme';
+import { TodayYogaCard } from '../../yoga/TodayYogaCard';
+
+const GLASS_ML = 250;
 
 function greeting(d: Date) {
   const h = d.getHours();
@@ -39,13 +46,18 @@ function greeting(d: Date) {
 }
 
 export default function Today() {
-  const { stepGoal, tracks } = useAppState();
+  const { stepGoal, tracks, demoMode } = useAppState();
   const sensor = useStepSensor();
+  const { open } = useLogSheets();
   const activity = useMetric(getActivityToday);
   const sleep = useMetric(getLastNightSleep);
   const heart = useMetric(getHeartToday);
   const spo2 = useMetric(getLatestSpo2);
   const plan = usePlan();
+  const { settings: cycleSettings } = useCycleSettings();
+  const [hidden, setHidden] = useTodayHidden();
+  const [customise, setCustomise] = useState(false);
+  const [toast, setToast] = useState<ToastMsg | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const reloadAll = useCallback(async () => {
@@ -75,76 +87,133 @@ export default function Today() {
     }, [])
   );
 
+  const dismissToast = useCallback(() => setToast(null), []);
+  const addWater = useCallback(async () => {
+    if (demoMode) {
+      setToast({ id: Date.now(), text: 'Demo mode — sample data isn’t changed.' });
+      return;
+    }
+    try {
+      const day = todayKey();
+      const before = await water.get(day);
+      await setWater(day, before + GLASS_ML);
+      const glasses = Math.round((before + GLASS_ML) / GLASS_ML);
+      setToast({
+        id: Date.now(),
+        text: `Added a glass of water · ${glasses} today`,
+        actionLabel: 'Undo',
+        onAction: () => void setWater(day, before),
+      });
+    } catch {
+      setToast({ id: Date.now(), text: 'Couldn’t save water. Please try again.' });
+    }
+  }, [demoMode]);
+
   const now = new Date();
   const dateText = now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
-  const show = (t: (typeof tracks)[number]) => tracks.includes(t);
+  const name = firstName(plan.state?.profile);
+  const hello = `${greeting(now)}${name ? `, ${name}` : ''}`;
+  const tracked = (t: (typeof tracks)[number]) => tracks.includes(t);
+  const on = (id: TodaySectionId) => !hidden.includes(id);
+
+  const showCycle = on('cycle') && tracked('cycle') && !cycleSettings.hideOnToday;
+  const showSleepHeart = on('sleepHeart') && (tracked('sleep') || tracked('heart'));
 
   return (
     <View style={{ flex: 1 }}>
-      <Screen refreshing={refreshing} onRefresh={onRefresh} contentStyle={{ paddingBottom: 112 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.sm }}>
-          <View accessible accessibilityRole="header" accessibilityLabel={`${greeting(now)}. ${dateText}`} style={{ flex: 1 }}>
+      <Screen tabBar refreshing={refreshing} onRefresh={onRefresh} contentStyle={{ gap: space.sm }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, marginBottom: space.xs }}>
+          <View accessible accessibilityRole="header" accessibilityLabel={`${hello}. ${dateText}`} style={{ flex: 1 }}>
             <Text variant="caption" tone="muted">
               {dateText}
             </Text>
-            <Text variant="display">{greeting(now)}</Text>
+            <Text variant="title">{hello}</Text>
           </View>
           <IconButton icon={Settings} accessibilityLabel="Settings" onPress={() => router.push('/settings')} />
         </View>
         {/* Renders nothing unless a watch was connected directly before. */}
         <WatchStatusChip />
         <DemoBanner />
-        <AskBloomCard />
-        {plan.state && !plan.state.profile ? <PlanSetupCard /> : null}
-        <WeightTodayCard state={plan.state} loading={plan.loading} />
-        <FoodTodayCard state={plan.state} loading={plan.loading} />
-        <ActivityTodayCard state={plan.state} loading={plan.loading} />
-        <TodayYogaCard />
-        {/* Hides itself when cycle tracking is off or "Hide cycle data on Today" is on. */}
-        <TodayCycleCard />
-        {show('steps') ? <ActivityCard loading={activity.loading} result={activity.result} goal={stepGoal} /> : null}
-        {show('sleep') ? <SleepCard loading={sleep.loading} result={sleep.result} /> : null}
-        {show('heart') ? (
+
+        {on('glance') ? (
           <>
-            <HeartCard loading={heart.loading} result={heart.result} />
-            <Spo2Card loading={spo2.loading} result={spo2.result} />
+            <SectionHeader label="Today at a glance" />
+            <GlanceGrid plan={plan.state} activity={activity.result} stepGoal={stepGoal} tracks={tracks} />
           </>
         ) : null}
+
+        <SectionHeader label="Quick log" />
+        <QuickLogRow tracks={tracks} onWater={addWater} />
+        <Toast msg={toast} onDismiss={dismissToast} />
+
+        {plan.state && !plan.state.profile ? <PlanSetupCard compact /> : null}
+
+        {showCycle ? (
+          <>
+            <SectionHeader
+              label="Your cycle"
+              action={<TextButton label="Log today" onPress={() => open('day')} accessibilityLabel="Log today: flow, symptoms, mood and more" />}
+            />
+            <TodayCycleCard compact />
+          </>
+        ) : null}
+
+        {on('yoga') ? (
+          <>
+            <SectionHeader label="Today’s yoga" />
+            <TodayYogaCard compact />
+          </>
+        ) : null}
+
+        {on('move') ? (
+          <>
+            <SectionHeader label="Move" />
+            <MoveCard
+              activity={activity.result}
+              loading={activity.loading}
+              plan={plan.state}
+              stepGoal={stepGoal}
+              showSteps={tracked('steps')}
+            />
+          </>
+        ) : null}
+
+        {showSleepHeart ? (
+          <>
+            <SectionHeader label="Sleep & heart" />
+            <SleepHeartCard
+              sleep={sleep.result}
+              heart={heart.result}
+              spo2={spo2.result}
+              loading={{ sleep: sleep.loading, heart: heart.loading, spo2: spo2.loading }}
+              showSleep={tracked('sleep')}
+              showHeart={tracked('heart')}
+            />
+          </>
+        ) : null}
+
+        {on('ask') ? (
+          <>
+            <SectionHeader label="Ask Bloom" />
+            <AskBloomCard />
+          </>
+        ) : null}
+
+        <TextButton
+          label="Customise Today"
+          icon={SlidersHorizontal}
+          onPress={() => setCustomise(true)}
+          accessibilityHint="Choose which sections Today shows"
+          style={{ alignSelf: 'center', marginTop: space.sm }}
+        />
       </Screen>
-      <LogFab />
+      <CustomiseTodaySheet visible={customise} hidden={hidden} onChange={setHidden} onClose={() => setCustomise(false)} />
     </View>
   );
 }
 
-function AskBloomCard() {
-  const { c } = useTheme();
-  return (
-    <Pressable
-      onPress={() => router.push('/coach')}
-      accessibilityRole="button"
-      accessibilityLabel="Ask Bloom, your AI coach"
-      accessibilityHint="Opens a chat that explains your data in plain language"
-      android_ripple={{ color: c.line }}
-      style={({ pressed }) => ({
-        minHeight: touch.min + 12,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space.sm,
-        paddingHorizontal: space.md,
-        paddingVertical: space.sm,
-        borderRadius: radius.card,
-        backgroundColor: c.sleepSoft,
-        opacity: pressed ? 0.85 : 1,
-      })}
-    >
-      <Sparkles size={22} color={c.sleep} />
-      <View style={{ flex: 1 }}>
-        <Text variant="bodyStrong">Ask Bloom</Text>
-        <Text variant="caption" tone="muted">
-          Morning brief, weekly review or any question about your data
-        </Text>
-      </View>
-      <ChevronRight size={20} color={c.muted} />
-    </Pressable>
-  );
+/** First name, if the profile ever carries one (the current profile has no name field). */
+function firstName(profile: unknown): string | null {
+  const n = (profile as { name?: unknown } | null | undefined)?.name;
+  return typeof n === 'string' && n.trim() ? n.trim().split(/\s+/)[0] : null;
 }

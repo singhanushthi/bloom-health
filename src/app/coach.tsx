@@ -6,14 +6,16 @@
 import { router } from 'expo-router';
 import { ArrowLeft, CalendarRange, KeyRound, Send, ShieldAlert, Sparkles, Sun } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View, type ScrollViewInstance } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCoach } from '../ai/CoachState';
+import { needsAiSetup } from '../ai/key';
 import { GeminiError, type ChatTurn } from '../ai/gemini';
 import { MORNING_BRIEF_PROMPT, PRIVACY_NOTE, SUGGESTED_PROMPTS, systemWithSummary, WEEKLY_REVIEW_PROMPT } from '../ai/prompts';
 import { getSummary } from '../ai/summary';
 import { Input } from '../components/sheets/Sheet';
-import { Button, Card, IconButton, Text } from '../components/ui';
+import { SetUpAiCard } from '../components/SetUpAiCard';
+import { Button, IconButton, Text } from '../components/ui';
 import { useAppState } from '../state/AppState';
 import { radius, space, touch } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -23,6 +25,8 @@ interface Msg extends ChatTurn {
   /** Shown as a short label instead of the long canned prompt. */
   display?: string;
   error?: boolean;
+  /** Google rejected the saved key: offer a direct way to fix it. */
+  fixKey?: boolean;
 }
 
 const MAX_HISTORY_TURNS = 12;
@@ -69,12 +73,13 @@ export default function CoachScreen() {
         const message =
           e instanceof GeminiError
             ? e.kind === 'auth'
-              ? 'Google didn’t accept your key. Check it in Settings → AI Coach.'
+              ? 'Google didn’t accept your key. Tap “Check my key” to fix it.'
               : e.message
             : e instanceof Error
               ? e.message
               : 'Something went wrong.';
-        setMsgs((m) => m.map((x) => (x.id === replyId ? { ...x, text: message, error: true } : x)));
+        const fixKey = needsAiSetup(e);
+        setMsgs((m) => m.map((x) => (x.id === replyId ? { ...x, text: message, error: true, fixKey } : x)));
       } finally {
         setBusy(false);
       }
@@ -102,19 +107,7 @@ export default function CoachScreen() {
       <View style={{ flex: 1, backgroundColor: c.bg }}>
         {header}
         <ScrollView contentContainerStyle={{ padding: space.md, gap: space.md }}>
-          <Card tint={c.sleepSoft}>
-            <View style={{ flexDirection: 'row', gap: space.sm }}>
-              <KeyRound size={22} color={c.sleep} />
-              <View style={{ flex: 1, gap: 4 }}>
-                <Text variant="bodyStrong">Turn on the AI coach</Text>
-                <Text>
-                  Bloom’s coach uses your own free Google Gemini key. Get one at aistudio.google.com/app/apikey, then paste it
-                  in Settings → AI Coach.
-                </Text>
-              </View>
-            </View>
-          </Card>
-          <Button label="Open AI Coach settings" icon={KeyRound} onPress={() => router.push('/(tabs)/settings')} />
+          <SetUpAiCard />
           <PrivacyNote />
         </ScrollView>
       </View>
@@ -122,7 +115,8 @@ export default function CoachScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    // 'padding' on Android too: with edge-to-edge the window no longer resizes for the keyboard.
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior="padding">
       {header}
       <ScrollView ref={scroll} contentContainerStyle={{ padding: space.md, gap: space.sm }} keyboardShouldPersistTaps="handled">
         {app.demoMode ? (
@@ -180,7 +174,19 @@ export default function CoachScreen() {
         ) : null}
 
         {msgs.map((m) => (
-          <Bubble key={m.id} msg={m} pending={busy && m.role === 'model' && !m.text} />
+          <React.Fragment key={m.id}>
+            <Bubble msg={m} pending={busy && m.role === 'model' && !m.text} />
+            {m.fixKey ? (
+              <Button
+                label="Check my key"
+                icon={KeyRound}
+                variant="secondary"
+                onPress={() => router.push('/settings/ai')}
+                accessibilityHint="Opens AI Coach setup"
+                style={{ alignSelf: 'flex-start' }}
+              />
+            ) : null}
+          </React.Fragment>
         ))}
         <PrivacyNote />
       </ScrollView>

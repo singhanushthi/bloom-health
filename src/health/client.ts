@@ -87,9 +87,57 @@ export interface PermissionOutcome {
   historyRequested: boolean;
 }
 
+/** Thrown when the permission sheet can't even be opened; `message` is shown to the user. */
+export class HealthConnectError extends Error {
+  constructor(
+    public reason: 'not-in-build' | 'init-failed',
+    message: string
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Android manifest permission behind a library permission. Every permission Bloom requests must
+ * be declared in app.json — one undeclared permission makes Health Connect drop the whole request
+ * without showing anything (checked by __tests__/hcPermissions.test.ts).
+ */
+const RECORD_PERMISSION_NAME: Record<string, string> = {
+  Steps: 'STEPS',
+  Distance: 'DISTANCE',
+  ActiveCaloriesBurned: 'ACTIVE_CALORIES_BURNED',
+  TotalCaloriesBurned: 'TOTAL_CALORIES_BURNED',
+  ExerciseSession: 'EXERCISE',
+  SleepSession: 'SLEEP',
+  HeartRate: 'HEART_RATE',
+  RestingHeartRate: 'RESTING_HEART_RATE',
+  OxygenSaturation: 'OXYGEN_SATURATION',
+  MenstruationPeriod: 'MENSTRUATION',
+  MenstruationFlow: 'MENSTRUATION',
+  Weight: 'WEIGHT',
+  Nutrition: 'NUTRITION',
+};
+
+export function androidPermissionFor(p: { accessType: 'read' | 'write'; recordType: string }): string | null {
+  if (p.recordType === 'ReadHealthDataHistory') return 'android.permission.health.READ_HEALTH_DATA_HISTORY';
+  const name = RECORD_PERMISSION_NAME[p.recordType];
+  return name ? `android.permission.health.${p.accessType.toUpperCase()}_${name}` : null;
+}
+
+/** The exact list sent by requestReadPermissions (first attempt). */
+export function readPermissionRequest(): { accessType: 'read'; recordType: string }[] {
+  return [
+    ...READ_RECORD_TYPES.map((recordType) => ({ accessType: 'read' as const, recordType })),
+    { accessType: 'read', recordType: 'ReadHealthDataHistory' },
+  ];
+}
+
 export async function requestReadPermissions(): Promise<PermissionOutcome> {
   const m = hc();
-  if (!m || !(await ensureInitialized())) return { granted: [], historyRequested: false };
+  if (!m) throw new HealthConnectError('not-in-build', 'Health Connect isn’t available in this version of Bloom.');
+  // initialize() must have resolved before requestPermission, or the native side rejects it.
+  if (!(await ensureInitialized()))
+    throw new HealthConnectError('init-failed', 'Health Connect didn’t start. Open the Health Connect app once, then try again.');
   const base = READ_RECORD_TYPES.map((recordType) => ({ accessType: 'read' as const, recordType }));
   let historyRequested = true;
   let result: Awaited<ReturnType<HCModule['requestPermission']>>;
@@ -126,10 +174,26 @@ function toMetricIds(perms: { accessType: string; recordType: string }[]): Metri
 export function openHealthConnectSettings(): void {
   const m = hc();
   try {
-    m?.openHealthConnectSettings();
+    if (m) {
+      m.openHealthConnectSettings();
+      return;
+    }
   } catch {
-    // ignore — the button also explains where to find the settings manually
+    // fall through to the intents below
   }
+  // No native module (or it failed): Android 14+ system intent, then the Health Connect app,
+  // then Bloom's own app settings so the button is never dead.
+  void (async () => {
+    try {
+      await Linking.sendIntent('android.health.connect.action.HEALTH_HOME_SETTINGS');
+    } catch {
+      try {
+        await Linking.sendIntent('androidx.health.ACTION_HEALTH_CONNECT_SETTINGS');
+      } catch {
+        await Linking.openSettings().catch(() => {});
+      }
+    }
+  })();
 }
 
 export async function openHealthConnectInPlayStore(): Promise<void> {

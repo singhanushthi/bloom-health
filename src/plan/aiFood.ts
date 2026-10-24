@@ -11,7 +11,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generate, GeminiError, type FetchLike, type FetchResponseLike } from '../ai/gemini';
-import { loadKey } from '../ai/key';
+import { loadKey, MissingAiKeyError } from '../ai/key';
 
 export interface AiFoodItem {
   name: string;
@@ -125,7 +125,7 @@ export async function aiParseFood(
   opts: { fetchImpl?: FetchLike; key?: string; signal?: AbortSignal } = {}
 ): Promise<AiFoodItem[]> {
   const key = opts.key ?? (await loadKey());
-  if (!key) throw new Error('Add your Gemini key in Settings → AI Coach to use AI quick add.');
+  if (!key) throw new MissingAiKeyError('Set up AI Coach to use AI quick add. It’s free and takes about a minute.');
   const [lastModel, auth] = await Promise.all([
     AsyncStorage.getItem(LAST_MODEL_KEY).catch(() => null),
     AsyncStorage.getItem(AUTH_MODE_KEY).catch(() => null),

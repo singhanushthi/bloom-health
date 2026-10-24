@@ -118,7 +118,14 @@ const num = (v: unknown, max: number) => {
 
 const DIET_RANK: Record<DietTag, number> = { vegan: 0, veg: 1, egg: 2, nonveg: 3 };
 
-export class AiRecipeError extends Error {}
+export class AiRecipeError extends Error {
+  /** "no-key" when AI Coach isn't set up yet (the screen then offers a Set up AI Coach button). */
+  readonly code?: 'no-key';
+  constructor(message: string, code?: 'no-key') {
+    super(message);
+    this.code = code;
+  }
+}
 
 /**
  * Parse and sanity-check the model's JSON into a Recipe. Throws AiRecipeError with a friendly
@@ -207,7 +214,7 @@ const defaultFetch: FetchLike = (url, init) => globalThis.fetch(url, init) as un
 
 export async function aiMakeRecipe(input: AiRecipeInput, opts: { fetchImpl?: FetchLike; key?: string; signal?: AbortSignal; now?: Date } = {}): Promise<Recipe> {
   const key = opts.key ?? (await loadKey());
-  if (!key) throw new AiRecipeError('Add your Gemini key in Settings → AI Coach to make AI recipes.');
+  if (!key) throw new AiRecipeError('Set up AI Coach to make AI recipes. It’s free and takes about a minute.', 'no-key');
   const [lastModel, auth] = await Promise.all([
     AsyncStorage.getItem(LAST_MODEL_KEY).catch(() => null),
     AsyncStorage.getItem(AUTH_MODE_KEY).catch(() => null),

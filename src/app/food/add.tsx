@@ -8,6 +8,7 @@ import { Check, Plus, Search, Sparkles, Star, Trash2 } from 'lucide-react-native
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useCoach } from '../../ai/CoachState';
+import { needsAiSetup } from '../../ai/key';
 import { searchFoods, FOODS } from '../../content/foods';
 import { DemoBanner } from '../../components/DemoBanner';
 import { Screen } from '../../components/Screen';
@@ -327,12 +328,16 @@ function AiQuickAdd({ meal }: { meal: Meal }) {
   const [items, setItems] = useState<AiFoodItem[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
 
   if (!coach.hasKey) {
     return (
-      <InfoNote icon={Sparkles} accent={c.sleep} tint={c.sleepSoft}>
-        Tip: add your free Gemini key in Settings → AI Coach to describe a meal in words (“2 roti, dal, salad”) and get an estimate.
-      </InfoNote>
+      <View style={{ gap: space.xs }}>
+        <InfoNote icon={Sparkles} accent={c.sleep} tint={c.sleepSoft}>
+          Tip: add your free Gemini key in Settings → AI Coach to describe a meal in words (“2 roti, dal, salad”) and get an estimate.
+        </InfoNote>
+        <Button label="Set up AI Coach" variant="ghost" icon={Sparkles} onPress={() => router.push('/settings/ai')} accessibilityHint="Opens AI Coach setup" />
+      </View>
     );
   }
 
@@ -343,9 +348,11 @@ function AiQuickAdd({ meal }: { meal: Meal }) {
     }
     setBusy(true);
     setError(null);
+    setNeedsSetup(false);
     try {
       setItems(await aiParseFood(text));
     } catch (e) {
+      setNeedsSetup(needsAiSetup(e));
       setError(e instanceof Error ? e.message : 'Couldn’t estimate that. Please try again.');
     } finally {
       setBusy(false);
@@ -388,6 +395,9 @@ function AiQuickAdd({ meal }: { meal: Meal }) {
       <Field label="AI quick add" error={error} hint="Describe your meal. You’ll check the estimate before saving.">
         <Input value={text} onChangeText={setText} placeholder="2 roti, dal, salad" accessibilityLabel="Describe what you ate" maxLength={300} />
       </Field>
+      {needsSetup ? (
+        <Button label="Set up AI Coach" variant="ghost" icon={Sparkles} onPress={() => router.push('/settings/ai')} accessibilityHint="Opens AI Coach setup" />
+      ) : null}
       <Button label="Estimate with AI" variant="secondary" icon={Search} onPress={run} loading={busy && !items} style={{ marginTop: space.sm }} />
       {items ? (
         <View style={{ gap: space.sm, marginTop: space.md }}>

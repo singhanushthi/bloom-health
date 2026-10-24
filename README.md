@@ -2,7 +2,7 @@
 
 Bloom tracks your **cycle, steps, sleep, heart rate and SpO₂**, plus a gentle **weight, food and activity plan**, guided **yoga** and a healthy **kitchen**, in one calm place.
 
-**Current version: 1.1.0** (Android `versionCode` 2 — installs as an update over 1.0.0 when both are signed with the same key).
+**Current version: 1.2.0** (Android `versionCode` 3 — installs as an update over 1.1.0 and 1.0.0 when they are signed with the same key). See [What's new in 1.2](#whats-new-in-12).
 
 **Bloom works on its own.** You don't need Flo, a Noise watch, NoiseFit or Google Fit. You log periods, symptoms, mood, sleep and readings in Bloom, and your phone counts your steps. Everything is stored on the phone. There's no account, no server and no analytics.
 
@@ -12,12 +12,23 @@ Extras are optional:
 
 ---
 
+## What's new in 1.2
+
+- **The Settings gear works.** In 1.1 the gear on Today did nothing on Android (Settings was a hidden tab, and expo-router 58 sends a hidden tab straight back to the first tab). Settings is now its own stack: a short hub, and one page per section.
+- **AI Coach setup in three steps** (*Settings → AI Coach*): open Google AI Studio → **Paste** → **Save & test**, with a specific message and one next step for every failure. Every AI feature that needs a key shows a **Set up AI Coach** button.
+- **Connect apps redesign:** one Health Connect button that changes with the state, and a step-by-step wizard per app. Noise has two paths (through NoiseFit, or direct Bluetooth).
+- **A calmer Today:** four glance tiles, a **Quick log** row instead of the floating button, compact sections, **Customise Today**, and a small toast with **Undo** for Water +1.
+- **Plan in four segments:** Overview · Food · Activity · Weight (the last one you picked is remembered).
+- Text fields scroll above the keyboard.
+
+---
+
 ## Install the app (no computer tools needed)
 
 The APK is built automatically on GitHub every time `main` changes.
 
 1. On your phone, open the repository's **Releases** page (`https://github.com/<you>/<repo>/releases`).
-2. Open the newest release (for example **Bloom v1.1.0**) and tap **`bloom-1.1.0.apk`** under *Assets*. Older releases (v1.0.0) stay available.
+2. Open the newest release (for example **Bloom v1.2.0**) and tap **`bloom-1.2.0.apk`** under *Assets*. Older releases (v1.1.0, v1.0.0) stay available.
 3. When Android asks, allow **Install unknown apps** for your browser, then tap **Install**.
 4. Open **Bloom**. Onboarding takes about a minute.
 
@@ -35,19 +46,19 @@ The same APK is also attached to each workflow run as the artifact **bloom-apk**
 Bottom tabs (five at most): **Today · Plan · Yoga · Cycle · Trends**. **Settings** opens from the gear button (labelled "Settings") in the Today header.
 
 ### Today
-- A greeting with a **Settings** gear, plus a small **Ask Bloom** card that opens the AI coach.
+- A greeting with the date and a **Settings** gear (opens the Settings hub).
 - A **watch chip** ("Watch connected · 72 bpm") appears under the greeting only after you've paired a watch directly; tap it to open the Watch screen.
-- Compact plan cards: **Weight** (latest morning weight + trend arrow, *Log weight*), **Food** (kcal eaten vs your range, as a ring), **Workouts** (minutes + extra burn) and **Today's yoga**. Without a goal, a *Set up my plan* card appears instead.
-- **Today in your cycle**: cycle day, phase, next period (or "may be late") and three tips for the phase. Hidden when cycle tracking is off or *Hide cycle data on Today* is on.
-- Cards for the other areas you chose to track (steps, sleep, heart rate & SpO₂).
+- **Today at a glance**: four tiles — **Steps** (vs goal, opens Trends), **Food** (kcal vs your range, opens Food), **Water** (glasses, opens Food) and **Weight** (latest + weekly direction, opens Weight). The Steps tile shows only if you track steps.
+- **Quick log** (always shown, no floating button): **Weight**, **Food**, **Water +1**, **Activity**, plus **Period** (if you track your cycle), **Sleep** (if you track sleep) or **Reading** (heart), up to six. Four fit in one row; five or six form a 3×2 grid so every button stays at least 44 dp and labels never clip on a 360 dp phone. *Water +1* logs a glass right away and shows a small toast with **Undo**.
+- Compact sections: **Your cycle** (with *Log today* for the full day log), **Today's yoga**, **Move** (steps + activity minutes), **Sleep & heart** and **Ask Bloom**. Without a goal, a *Set up my plan* card appears.
+- **Customise Today** (button at the bottom) hides or shows each section; the choice is saved on the phone. Areas you don't track (Settings → You & your goals → What you track) and *Hide cycle data on Today* still apply.
 - **Every card shows where its data came from**: "Logged in Bloom", "Phone (Health Connect)", "Phone (while Bloom is open)", "Flo", "Google Fit", "NoiseFit"…
-- One floating **Log** button opens an action sheet: **Weight**, **Food**, **Activity**, **Period**, **Day log** (the full cycle day log, with pain, energy, pills and more), **Sleep** or **Reading**.
 - Pull down to refresh.
 
 ### Plan (weight, food & activity)
 A gentle, flexible plan. Targets are shown as a **comfortable range** ("aim around 1,450–1,650 kcal"), with a weekly **flex** allowance for treats. Nothing is strict, and the wording never shames.
 
-**Profile & goal** (optional onboarding step, editable from Plan → pencil or Settings → Your plan):
+**Profile & goal** (optional onboarding step, editable from Plan → pencil or Settings → You & your goals):
 formula (female/male: *"Which formula should we use?"*), birth year, height (cm or ft + in), current weight, target weight, how active you are (four plain descriptions), food preference (vegetarian, eggetarian, non-veg, vegan, **Jain** = vegetarian without onion, garlic or root vegetables, filtered by food names), pace (**Gentle / Steady / Faster**) and yoga sessions a week. A live preview shows the range before you save.
 
 **How the numbers are made** (`src/plan/engine.ts`, tested):
@@ -62,7 +73,11 @@ formula (female/male: *"Which formula should we use?"*), birth year, height (cm 
 - **Calorie floor 1,200 kcal** (female formula) / **1,500 kcal** (male formula). If a pace would go lower, Bloom slows the pace and says so. Weekly adjustments respect the floor too.
 - **Under 18:** *"Bloom's plans are for adults — please plan with a doctor or parent."* Tracking works; no calorie targets are shown.
 
-**Plan screen:** progress (start → now → target, kg to go, % done, projected date), today's targets, weight chart, food summary + *Log food*, activity summary + *Log activity*, **next meal ideas**, the week's **yoga goal** (sessions from the Yoga tab count automatically), **plan updates**, and *Ask Bloom for a weekly plan* (optional, AI).
+**Plan screen** has four segments at the top — **Overview · Food · Activity · Weight** — each with one main action. The last segment you opened is remembered on the phone.
+- *Overview*: progress (start → now → target, kg to go, % done, projected date), today's targets, **plan updates**, and *Ask Bloom for a weekly plan* (optional, AI).
+- *Food*: food summary (range + macros) + *Log food*, meals, **next meal ideas**, water and the **Kitchen**.
+- *Activity*: today's activity + *Log activity*, and the week's **yoga goal** (sessions from the Yoga tab count automatically).
+- *Weight*: trend chart + *Log weight*, recent entries.
 
 **Adaptive plan** (`src/plan/adapt.ts`, tested):
 - *Next meal ideas*: 2–4 suggestions from the Indian food list that match your diet and fit what's left today. When protein is behind, protein-rich combos come first (for example *Paneer bhurji + Roti*). Tap **+** to log one.
@@ -78,7 +93,7 @@ formula (female/male: *"Which formula should we use?"*), birth year, height (cm 
 - Meals: Breakfast, Lunch, Evening snack, Dinner, Other.
 - Add food by **Search** (filtered by your diet), **Recent**, **Saved** (favourites, the star) or **Mine** (custom foods). Choose servings (0.5 steps) or grams, and see kcal and protein update as you go. Entries can be edited or deleted.
 - **My own food**: name, serving, kcal and optional protein, carbs, fat and fibre, saved on the phone.
-- **AI quick add** (needs your Gemini key): type *"2 roti, dal, salad"*. Gemini returns JSON items (`responseMimeType: application/json` + `responseSchema`), which you check and edit before saving. They're labelled **AI estimate**. Without a key, a hint points to Settings → AI Coach.
+- **AI quick add** (needs your Gemini key): type *"2 roti, dal, salad"*. Gemini returns JSON items (`responseMimeType: application/json` + `responseSchema`), which you check and edit before saving. They're labelled **AI estimate**. Without a key (or if Google rejects it), a **Set up AI Coach** button opens the setup page.
 - Daily summary: eaten vs your range, remaining, protein / carbs / fat / fibre bars with numbers, and a **water** tracker (tap a glass = 250 ml).
 
 ### Activity
@@ -95,7 +110,7 @@ formula (female/male: *"Which formula should we use?"*), birth year, height (cm 
 - **Calendar**: period days, predicted period (estimate), estimated fertile window and ovulation (only for the two fertility goals), PMS days and days with a log. Meaning is carried by shape and pattern, not colour alone. Tap any day up to today to log it.
 - **Phase suggestions**: food, movement (period-friendly yoga) and self-care ideas for each phase, matched to your diet and yoga level, plus **Insights** (cycle lengths, typical symptoms per phase).
 - **"Late" banner** when the period is a few days past the estimate, with calm wording.
-- **Reminders** (Settings → Cycle reminders, all optional): period coming soon, period may be late, fertile window, daily check-in at a time you choose, daily pill reminder. Scheduled on the phone with `expo-notifications`; Android asks for notification permission only when you turn one on. Reminders are kept in sync automatically when you log or change settings.
+- **Reminders** (Settings → Period & reminders, all optional): period coming soon, period may be late, fertile window, daily check-in at a time you choose, daily pill reminder. Scheduled on the phone with `expo-notifications`; Android asks for notification permission only when you turn one on. Reminders are kept in sync automatically when you log or change settings.
 - **Discreet mode** (on by default): notifications say only "Bloom reminder" and never mention periods. **Hide cycle data on Today** keeps the cycle card off the home screen.
 - Predictions come from the **merged** history: your Bloom logs plus Health Connect `MenstruationPeriod`/`MenstruationFlow` (for example from Flo), when connected. Overlapping and adjacent days are merged into one period, and the history shows each period's source.
 - Predictions are always labelled as **estimates**. **Bloom is not a method of contraception**, and the fertile window is an awareness aid only.
@@ -115,13 +130,20 @@ formula (female/male: *"Which formula should we use?"*), birth year, height (cm 
 - **Recipes**: original Indian home recipes ranked by what's in your pantry and filtered by your diet (incl. Jain). *Cook now* shows the ones you can make. Log a recipe to Food in one tap.
 - **AI recipe** (optional, your Gemini key) from what you have, labelled **AI estimate**.
 - **Shopping list** and **My recipes**. Everything is stored on the phone; demo mode uses an in-memory sample kitchen.
-- Opens from the Kitchen card on the Plan tab.
+- Opens from the Kitchen card in Plan → Food.
 
 ### Connect apps
-Settings → **Connect apps** explains, app by app (Noise watch, Flo, Google Fit, Google Health, Samsung Health, Fitbit, HealthifyMe, MyFitnessPal, Strava, Mi Fitness / Zepp, boAt / Fire-Boltt, Huawei Health…), how its data can reach Bloom through **Health Connect**, with step-by-step instructions and whether Bloom has actually seen data from it yet. Bloom never talks to these apps directly; it only sees each record's source app.
+Settings → **Connect apps & watch** (`/connect`):
+- **Health Connect status** at the top with **one** button that changes with the state: *Install* (Play Store) → *Update* → *Allow access* (permission sheet) → *Connected ✓* (*Manage access*). If the permission sheet fails or nothing is allowed, Bloom says so and offers **Open Health Connect settings**.
+- **Your apps**: one row per app (Noise first, then Flo, Google Fit, Google Health, Samsung Health; *Show more apps* for Fitbit, HealthifyMe, MyFitnessPal, Strava, Mi Fitness / Zepp, boAt / Fire-Boltt, Huawei Health, Apple Health) with a status chip (*Connected ✓* once Bloom has seen data from it in the last 30 days, otherwise *Set up →*). *Other apps sending data* is collapsed at the bottom.
+- Each row opens a **step-by-step wizard** (`/connect/[appId]`, defined in `src/health/connectWizard.ts`). Ticks are saved on the phone; *allow Health Connect* and *Check it's working* tick themselves.
+- **Noise watch** has two paths. **Path A — Through NoiseFit** (recommended; steps, sleep, heart rate, SpO₂): install NoiseFit and pair → NoiseFit: Profile → Connect apps (or Settings → Third-party) → Google Fit → allow → Google Fit: Profile → ⚙ Settings → *Sync Fit with Health Connect* (Google Health: Settings → Health Connect) → allow Health Connect in Bloom → **Check it's working** ("Found 4,210 steps from Google Fit yesterday ✓"). **Path B — Direct Bluetooth** (beta, heart rate only) opens the Watch screen.
+- **Flo** only imports old period history — Bloom already tracks periods itself.
+
+Bloom never talks to these apps directly; it only sees each record's source app.
 
 ### Direct watch (beta)
-Settings → **Watch (direct, beta)** connects to a watch or chest strap over **standard Bluetooth LE** — no companion app needed, *when the watch supports it*:
+Connect apps & watch → **Connect a watch directly (beta)** connects to a watch or chest strap over **standard Bluetooth LE** — no companion app needed, *when the watch supports it*:
 - Reads only public Bluetooth SIG services: **Heart Rate (0x180D)**, **Battery (0x180F)** and **Device Information (0x180A)**. No proprietary protocols.
 - Shows live heart rate and saves **one reading per minute** (the median) into Bloom, labelled **"Watch (direct)"** on cards and charts.
 - Reconnects automatically to the paired watch **while Bloom is open** (nothing runs in the background). If nothing was paired, Bloom never touches Bluetooth at start-up.
@@ -150,17 +172,15 @@ Distance is Health Connect's value when there is one. Otherwise it's **steps × 
 7- or 30-day charts for steps (with a goal line), sleep and heart rate. With no watch, the heart chart shows the daily average of your logged readings and says so. Each chart has a source label and a spoken summary.
 
 ### Settings
-- **What you track**: choose which areas Today shows.
-- **Your plan**: edit your goal, and optional **Health Connect sharing** toggles — read weight (smart scales, Google Health), save weights, save meals (Nutrition records) and save workouts (exercise sessions). All are off by default. Bloom asks Health Connect for each permission only when you turn its toggle on.
-- **Your cycle / Cycle reminders / Privacy**: usual lengths, goal, reminders, discreet notifications and *Hide cycle data on Today*.
-- **Connect apps**: a step-by-step screen for Health Connect, Google Fit, a watch or Flo.
-- **Watch (direct, beta)**: pair, disconnect or forget a Bluetooth watch.
-- **Steps**: daily goal, stride length, and the phone-sensor permission.
-- **AI Coach**: set up your Gemini key (see below).
-- **Health Connect (optional)**: connect, manage permissions, and see which app supplied each data type.
-- **Connected apps (optional)**: checklist for Flo → Health Connect, NoiseFit → Google Fit, and **Google Fit → Profile → Settings → "Sync Fit with Health Connect"**.
-- **Your data**: **Export as JSON** (opens the share sheet; includes cycle extras and settings, plan, kitchen, yoga history and the paired watch) and **Delete all my data** (asks you to confirm first; wipes every Bloom table, yoga preferences, the paired watch and scheduled cycle reminders).
-- **Demo mode**: fills every screen with realistic sample data.
+The gear on Today opens a short **Settings hub** (`/settings`, its own stack, not a tab), grouped into **You**, **Connections**, **Health** and **Privacy & app**. Each row has a one-line description and opens its own page with a back button (back from the hub returns to Today):
+- **You & your goals** — goal summary, *Edit my goal*, **What you track**, *Show the welcome steps again*.
+- **Connect apps & watch** — see above.
+- **AI Coach** — set up or remove your Gemini key (see below).
+- **Health Connect sharing** — optional toggles, all off by default: read weight (smart scales, Google Health), save weights, save meals (Nutrition records), save workouts (exercise sessions). Bloom asks Health Connect for each permission only when you turn its toggle on. Also the past-data note and *which app sent what* (30 days).
+- **Period & reminders** — usual lengths, goal, reminders, discreet notifications and *Hide cycle data on Today*.
+- **Steps & phone sensors** — daily goal, physical-activity permission, how counting works, stride length.
+- **Data & privacy** — **Export my data** (JSON, share sheet; includes cycle extras and settings, plan, kitchen, yoga history and the paired watch), **Delete all my data** (asks first; wipes every Bloom table, yoga preferences, the paired watch, connect-wizard ticks and scheduled cycle reminders), **Demo mode**, and what leaves the phone.
+- **About Bloom** — version, what's new in 1.2, safety notes.
 
 ### Onboarding
 Welcome → **What to track** (cycle / steps / sleep / heart) → *optional* **Profile & goal** (Skip for now) → *optional* **"Connect Health Connect for all-day steps (and your watch/Flo if you use them)"** with **Skip for now** → done.
@@ -180,8 +200,8 @@ Welcome → **What to track** (cycle / steps / sleep / heart) → *optional* **P
 
 1. Go to **https://aistudio.google.com/app/apikey** on any device and sign in with a Google account.
 2. Tap **Create API key** and copy it. New keys start with **`AQ.`**; older keys start with `AIza`. Both work.
-3. In Bloom open **Settings → AI Coach**, paste the key into **Gemini API key** and tap **Use my key**.
-   - Bloom sends one tiny test request. You'll see **"AI coach turned on"** or **"Google didn't accept that key"**.
+3. In Bloom open **Settings → AI Coach** (or tap **Set up AI Coach** on Ask Bloom, AI quick add, AI recipes or the weekly plan). Step 1 has an **Open Google AI Studio** button; in step 2 tap **Paste** or long-press the box and paste (spaces, line breaks at the ends and surrounding quotes are removed either way); then tap **Save & test** (step 3).
+   - Bloom sends one tiny test request and says exactly what happened: *AI Coach is on ✓*, *Google says this key isn't valid*, *Google didn't accept this new "AQ." key* (after trying both the header and `?key=`), *You seem to be offline*, *Google's AI is busy*, or *Key saved, free limit used up for now* — each with one next step. A key with an unusual prefix gets a gentle warning but can still be tried.
    - The key is stored encrypted on the phone (`expo-secure-store`). It is only ever sent to `generativelanguage.googleapis.com`, in the `x-goog-api-key` header. If Google rejects the key in the header with an auth error (some `AQ.` keys reportedly need this), Bloom retries once with the key as a `?key=` URL parameter and remembers which way worked; quota errors never trigger this. The key is never logged. **Remove key** deletes it.
 4. On Today, tap **Ask Bloom**. You can tap a suggested question ("Explain my cycle phase", "How was my sleep this week?", "Am I hitting my step goal?"), use **Morning brief** or **Weekly review**, or type your own question.
 
@@ -234,7 +254,7 @@ gh secret set ANDROID_KEY_PASSWORD               # same password
 
 **Back up `bloom-release.jks` and its password**, for example in a password manager. `*.jks` is gitignored, so never commit it. If you lose the keystore, you'll have to uninstall Bloom (export your data first) before a build signed with a new key will install.
 
-> Switching from debug signing to your own key changes the signature once, so Android will refuse to install the new build over the old one. Export your data first (Settings → Your data). Bloom can't import yet, so keep that JSON file as a backup. Then uninstall the old build and install the new one.
+> Switching from debug signing to your own key changes the signature once, so Android will refuse to install the new build over the old one. Export your data first (Settings → Data & privacy). Bloom can't import yet, so keep that JSON file as a backup. Then uninstall the old build and install the new one.
 
 ### How the CI build works
 
@@ -274,11 +294,12 @@ src/
 │   │                        mounts CycleReminderSync and reconnects a paired watch (initWatchIfPaired)
 │   ├── index.tsx            redirect → onboarding | tabs
 │   ├── coach.tsx            AI coach chat (pushed from Today's "Ask Bloom" card)
-│   ├── connect.tsx · watch.tsx   Connect apps guide · direct Bluetooth watch (beta)
+│   ├── connect/ · watch.tsx  Connect apps (Health Connect status + app rows) · [appId] wizards · direct Bluetooth watch (beta)
+│   ├── settings/            hub + profile · ai · health-connect · cycle · steps · data · about (own Stack)
 │   ├── weight/ · food/ · activity/   plan logging screens
 │   ├── cycle/ · yoga/ · kitchen/     deep screens for those tabs/features
 │   ├── onboarding/          index (welcome) · track · profile (optional) · connect (optional HC) · done
-│   └── (tabs)/              index (Today) · plan · yoga · cycle · trends · settings (hidden from the tab bar)
+│   └── (tabs)/              index (Today) · plan · yoga · cycle · trends
 ├── db/                      expo-sqlite store: schema + migrations (v3), repositories, allData (export/delete everything)
 ├── plan/                    weight engine, adaptive plan, food/activity, Health Connect sharing
 ├── cycle/ · notify/         cycle 2.0 store (cycle_kv, cycle_day_extras), UI, reminders (expo-notifications)
@@ -314,7 +335,7 @@ scripts/make-keystore.sh        one-time keystore creation
 - **Direct watch (beta)** only works with watches that expose the standard Bluetooth Heart Rate service, only while Bloom is open, and reads heart rate only.
 - **Cycle reminders** are local notifications. Some phones' battery savers delay or drop them; they're estimates, not alarms to rely on.
 - **Kitchen barcode lookup** needs internet and depends on Open Food Facts having the product; you can always enter it by hand.
-- Bloom only writes to Health Connect if you turn on a sharing toggle (Settings → Your plan): weights, meals (Nutrition) and workouts (ExerciseSession). Records Bloom wrote are skipped when it reads Health Connect back, so nothing is counted twice. Android only.
+- Bloom only writes to Health Connect if you turn on a sharing toggle (Settings → Health Connect sharing): weights, meals (Nutrition) and workouts (ExerciseSession). Records Bloom wrote are skipped when it reads Health Connect back, so nothing is counted twice. Android only.
 - **Plan numbers are estimates.** Calorie formulas, MET values, food values (some marked *approx.*) and AI estimates are all approximate. The plan is general guidance, not medical advice. If you're pregnant, breastfeeding, under 18 or managing a health condition, plan with your doctor.
 - **Demo mode** shows sample plan data. Anything you log while it's on is saved to your real (hidden) data.
 
@@ -322,6 +343,8 @@ scripts/make-keystore.sh        one-time keystore creation
 
 ## Notes and decisions
 
+- **Settings is a stack, not a hidden tab:** in expo-router 58, `expo-router/js-tabs` turns `href: null` into `hidden: true`, and `useVisibleTabsWithRedirect` immediately `router.replace`s a focused hidden tab with the first tab. In v1.1.0 that made `/settings` bounce straight back to Today ("the gear does nothing"). Settings now lives in `src/app/settings/` with its own Stack.
+- **Health Connect permission requests** must only include permissions declared in `app.json` (`__tests__/hcPermissions.test.ts` checks this); `initialize()` is awaited before `requestPermission`, and failures are shown with an *Open Health Connect settings* fallback.
 - **Plan storage:** schema v2 adds `kv` (profile, plan settings), `weight_logs`, `food_entries`, `custom_foods`, `food_favourites`, `water_days`, `activity_logs` and `plan_adjustments`. Every statement uses `IF NOT EXISTS`, so migrations can run again safely. Export and "Delete all my data" include these tables.
 - **Health Connect permissions added for the plan:** `READ_WEIGHT`, `WRITE_WEIGHT`, `READ_NUTRITION`, `WRITE_NUTRITION`, `WRITE_EXERCISE`. Record shapes were checked against react-native-health-connect 4.1.3 types: `Weight.weight: Mass`, `Nutrition.energy/protein/totalCarbohydrate/totalFat/dietaryFiber`, `ExerciseSession.exerciseType` (ExerciseType constants). Write permissions are requested only when a toggle is turned on.
 

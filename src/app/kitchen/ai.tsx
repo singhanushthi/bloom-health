@@ -8,9 +8,11 @@ import { Sparkles } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { View } from 'react-native';
 import { useCoach } from '../../ai/CoachState';
+import { needsAiSetup } from '../../ai/key';
 import { DemoBanner } from '../../components/DemoBanner';
 import { Screen } from '../../components/Screen';
 import { ChipRow, Field, ToggleChip } from '../../components/sheets/Sheet';
+import { SetUpAiCard } from '../../components/SetUpAiCard';
 import { Button, Card, CardHeader, Text } from '../../components/ui';
 import { RECIPE_MEAL_LABEL, RECIPE_MEALS, type RecipeMeal } from '../../content/recipes';
 import { aiMakeRecipe, AiRecipeError } from '../../kitchen/aiRecipe';
@@ -30,6 +32,7 @@ export default function AiRecipe() {
   const [meal, setMeal] = useState<RecipeMeal>(k.meal);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
 
   // Ingredient names only — no brands, barcodes or quantities.
   const names = Array.from(
@@ -40,11 +43,13 @@ export default function AiRecipe() {
   const make = async () => {
     setBusy(true);
     setError(null);
+    setNeedsSetup(false);
     try {
       const r = await aiMakeRecipe({ pantryNames: names, diet: k.plan.diet, remainingKcal: budget, remainingProtein: k.plan.remainingProtein, meal });
       putPendingRecipe(r);
       router.push(`/kitchen/recipe/${encodeURIComponent(r.id)}`);
     } catch (e) {
+      setNeedsSetup(needsAiSetup(e));
       setError(e instanceof AiRecipeError || e instanceof Error ? e.message : 'Couldn’t make a recipe right now.');
     } finally {
       setBusy(false);
@@ -56,10 +61,7 @@ export default function AiRecipe() {
       <BackHeader title="Make me something" subtitle="AI recipe from your kitchen" />
       <DemoBanner />
       {!coach.hasKey ? (
-        <Card>
-          <Text>Add your free Gemini key in Settings → AI Coach to use AI recipes. Everything else in the Kitchen works without it.</Text>
-          <Button label="Open Settings" variant="secondary" onPress={() => router.push('/settings')} style={{ marginTop: space.sm }} />
-        </Card>
+        <SetUpAiCard body="AI recipes use your own free Google key. Everything else in the Kitchen works without it." />
       ) : (
         <>
           <Field label="Which meal?">
@@ -98,6 +100,7 @@ export default function AiRecipe() {
               {error}
             </Text>
           ) : null}
+          {error && needsSetup ? <SetUpAiCard primary={false} body="Google needs a working key for AI recipes. Bloom shows you each step." /> : null}
         </>
       )}
     </Screen>

@@ -46,7 +46,7 @@ import { space } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { PatternSwatch, Ring, Sparkline, StageBar, type StageSegment } from './charts';
 import { useLogSheets } from './sheets/LogSheets';
-import { Button, Card, CardHeader, CardSkeleton, Chip, EmptyNote, Text } from './ui';
+import { Button, Card, CardHeader, CardSkeleton, Chip, EmptyNote, Text, TextButton } from './ui';
 
 /** "Source: Logged in Bloom" line shown at the bottom of every card with data. */
 export function SourceTag({ sources, fallback }: { sources: string[]; fallback?: string }) {
@@ -85,7 +85,7 @@ function StateNote({
         icon={Lock}
         accent={accent}
         title="Permission needed"
-        body="Bloom can't read this from Health Connect yet. Use Settings → Health Connect → Manage permissions."
+        body="Bloom can't read this from Health Connect yet. Allow it from Settings → Connect apps & watch → Health Connect."
       />
     );
   if (result.status === 'error')
@@ -211,7 +211,7 @@ export function ActivityCard({
     ) : null;
 
   const actions = (
-    <View style={{ gap: space.xs, marginTop: space.md }}>
+    <View style={{ gap: space.xxs, marginTop: space.sm }}>
       {needsSensor ? (
         <Button
           label="Count steps with this phone"
@@ -220,7 +220,7 @@ export function ActivityCard({
           accessibilityHint="Asks for physical activity permission so Bloom can count steps while it's open"
         />
       ) : null}
-      <Button label="Edit today's steps" variant="secondary" icon={Pencil} onPress={() => open('steps')} />
+      <TextButton label="Edit today's steps" icon={Pencil} onPress={() => open('steps')} />
     </View>
   );
 
@@ -303,7 +303,7 @@ export function SleepCard({ loading, result }: { loading: boolean; result: Metri
   if (loading && !result) return <CardSkeleton label="sleep" height={170} />;
   if (!result) return null;
   const d = result.data;
-  const logBtn = <Button label="Log sleep" variant="secondary" icon={Moon} onPress={() => open('sleep')} style={{ marginTop: space.md }} />;
+  const logBtn = <TextButton label="Log sleep" icon={Moon} onPress={() => open('sleep')} style={{ marginTop: space.xs }} />;
   if (result.status !== 'ok' || !d) {
     return (
       <Card>
@@ -387,14 +387,12 @@ function VitalsEmpty({ accent, title, kind }: { accent: string; title: string; k
   return (
     <>
       <EmptyNote icon={CircleAlert} accent={accent} title={title} body="Add a reading from a pulse oximeter or your watch screen." />
-      <Button label="Add reading" icon={Plus} onPress={() => open('reading', { kind })} style={{ marginTop: space.md }} />
-      <Button
+      <TextButton label="Add reading" icon={Plus} onPress={() => open('reading', { kind })} style={{ marginTop: space.xs }} />
+      <TextButton
         label="Connect a watch in Settings for automatic readings"
-        variant="ghost"
         icon={Watch}
-        onPress={() => router.push('/(tabs)/settings')}
-        style={{ marginTop: space.xs, paddingHorizontal: space.sm }}
-        accessibilityHint="Opens Settings, Connected apps"
+        onPress={() => router.push('/settings')}
+        accessibilityHint="Opens Settings"
       />
     </>
   );
@@ -450,7 +448,7 @@ export function HeartCard({ loading, result }: { loading: boolean; result: Metri
         ) : null}
         <SourceTag sources={result.sources} />
       </View>
-      <Button label="Add reading" variant="secondary" icon={Plus} onPress={() => open('reading', { kind: 'hr' })} style={{ marginTop: space.md }} />
+      <TextButton label="Add reading" icon={Plus} onPress={() => open('reading', { kind: 'hr' })} style={{ marginTop: space.xs }} />
     </Card>
   );
 }
@@ -498,7 +496,7 @@ export function Spo2Card({ loading, result }: { loading: boolean; result: Metric
         </View>
         <SourceTag sources={result.sources} />
       </View>
-      <Button label="Add reading" variant="secondary" icon={Plus} onPress={() => open('reading', { kind: 'spo2' })} style={{ marginTop: space.xs }} />
+      <TextButton label="Add reading" icon={Plus} onPress={() => open('reading', { kind: 'spo2' })} style={{ marginTop: space.xs }} />
     </Card>
   );
 }

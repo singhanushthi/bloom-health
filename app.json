@@ -3,7 +3,7 @@
     "name": "Bloom",
     "slug": "bloom-health",
     "scheme": "bloom",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -13,7 +13,7 @@
     "backgroundColor": "#FBF6F1",
     "android": {
       "package": "com.bloomhealth.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#F9DCE4",
         "foregroundImage": "./assets/android-icon-foreground.png",
