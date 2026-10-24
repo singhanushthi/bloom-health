@@ -6,25 +6,14 @@
  * Validation errors are shown inline under the field that caused them.
  */
 import { router } from 'expo-router';
-import { Activity, CalendarHeart, Droplet, HeartPulse, Moon, NotebookPen, Footprints, Scale, Utensils } from 'lucide-react-native';
+import { Activity, Droplet, HeartPulse, Moon, NotebookPen, Footprints, Scale, Utensils } from 'lucide-react-native';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import {
-  FLOWS,
-  HR_RANGE,
-  periods,
-  sleepLogs,
-  SPO2_RANGE,
-  stepDays,
-  ValidationError,
-  vitals,
-  type Flow,
-  type VitalKind,
-} from '../../db/repos';
+import { FLOWS, HR_RANGE, periods, sleepLogs, SPO2_RANGE, stepDays, ValidationError, vitals, type Flow, type VitalKind } from '../../db/repos';
 import { dayStart, toDayKey, todayKey, type DayKey } from '../../health/dates';
 import { CycleDayLogSheet } from '../../cycle/DayLogSheet';
 import { useAppState } from '../../state/AppState';
-import { radius, space, touch } from '../../theme/tokens';
+import { radius, space } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { Button, Text } from '../ui';
 import { DateTimeField, sleepRange, withTime } from './DateTimeField';
@@ -443,46 +432,5 @@ function StepsSheet({ onClose }: { onClose: () => void }) {
         />
       </Field>
     </Sheet>
-  );
-}
-
-/* --------------------------- Floating Log button -------------------------- */
-
-export function LogFab({ bottomOffset = 0 }: { bottomOffset?: number }) {
-  const { c } = useTheme();
-  const { open } = useLogSheets();
-  return (
-    <Pressable
-      onPress={() => open('menu')}
-      accessibilityRole="button"
-      accessibilityLabel="Log"
-      accessibilityHint="Log weight, food, activity, a period, day, sleep or reading"
-      android_ripple={{ color: '#ffffff33', borderless: false }}
-      style={({ pressed }) => ({
-        position: 'absolute',
-        right: space.md,
-        bottom: space.md + bottomOffset,
-        minHeight: 56,
-        minWidth: touch.min,
-        paddingHorizontal: space.lg,
-        borderRadius: radius.pill,
-        backgroundColor: c.ink,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space.xs,
-        elevation: 6,
-        shadowColor: c.shadow,
-        shadowOpacity: 0.2,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 4 },
-        overflow: 'hidden',
-        transform: [{ scale: pressed ? 0.97 : 1 }],
-      })}
-    >
-      <CalendarHeart size={22} color={c.onInk} />
-      <Text variant="bodyStrong" tone="onInk">
-        Log
-      </Text>
-    </Pressable>
   );
 }

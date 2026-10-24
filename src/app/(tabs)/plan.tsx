@@ -557,7 +557,7 @@ function WeeklyPlanCard({ state, primary }: { state: PlanState; primary: boolean
       ) : (
         <>
           <Text tone="muted">Add your free Gemini key in Settings → AI Coach to get a friendly weekly meal and yoga outline.</Text>
-          <TextButton label="Open Settings" onPress={() => router.push('/settings')} accessibilityHint="Add your Gemini key under AI Coach" style={{ marginTop: space.xxs }} />
+          <TextButton label="Set up AI Coach" onPress={() => router.push('/settings/ai')} accessibilityHint="Opens Settings, AI Coach, to add your Gemini key" style={{ marginTop: space.xxs }} />
         </>
       )}
     </Card>
