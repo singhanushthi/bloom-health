@@ -76,7 +76,29 @@
       "expo-sharing",
       "@react-native-community/datetimepicker",
       "expo-secure-store",
-      "./plugins/withReleaseSigning"
+      "./plugins/withReleaseSigning",
+      [
+        "expo-notifications",
+        {
+          "color": "#D9577B"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Bloom uses the camera only to scan barcodes on food products you add to your kitchen.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "modes": [],
+          "neverForLocation": true,
+          "bluetoothAlwaysPermission": "Bloom uses Bluetooth to read heart rate from a watch you connect directly."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false
