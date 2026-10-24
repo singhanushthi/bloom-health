@@ -42,13 +42,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # 'basic' = open-source actions/cache provider; the v6 default ('enhanced') is a
-      # proprietary service that is only a free preview for private repositories.
-      - name: Set up Gradle (with caching)
-        uses: gradle/actions/setup-gradle@v6
-        with:
-          cache-provider: basic
-
       - name: Install dependencies
         run: npm ci
 
@@ -68,6 +61,13 @@ jobs:
         run: npx expo prebuild --platform android --no-install
         env:
           CI: '1'
+
+      # 'basic' = open-source actions/cache provider; the v6 default ('enhanced') is a
+      # proprietary service that is only a free preview for private repositories.
+      - name: Set up Gradle (with caching, after prebuild creates android/)
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
 
       - name: Configure release signing
         id: signing
