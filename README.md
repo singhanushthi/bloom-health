@@ -215,6 +215,8 @@ It moves to the next model when one is out of quota, retired or overloaded. When
 
 ## Stable signing (do this once)
 
+> **Status (24 Oct 2026):** the four `ANDROID_*` secrets are set to the key that signed v1.0.0 and v1.1.0 (Expo's template debug key, SHA-256 `FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C`). That locks it in, so future Expo template changes can't break updates. Because this key is public, only install Bloom APKs from this repository's Releases. Moving to a private key later needs a one-time reinstall, so add data import first.
+
 Android installs an update over an existing app **only if both are signed with the same key**. The workflow handles this as follows:
 
 - **With secrets (recommended):** it signs with your own keystore.
