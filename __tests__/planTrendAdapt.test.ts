@@ -53,7 +53,7 @@ const food = (id: string, name: string, diet: Food['diet'], kcal: number, protei
     id,
     name,
     aliases,
-    category: 'test',
+    category: 'other',
     diet,
     serving: { label: '1 serving', grams: 100 },
     per: { kcal, protein, carbs: 10, fat: 5, fiber: 2 },

@@ -50,14 +50,16 @@ describe('FOODS data', () => {
   });
 
   it('has sane serving grams and macro mass', () => {
+    const bad: string[] = [];
     for (const f of FOODS) {
-      expect(f.serving.grams).toBeGreaterThan(0);
-      expect(f.serving.grams).toBeLessThanOrEqual(500);
       const { protein, carbs, fat, fiber } = f.per;
-      // macros can't weigh more than the serving itself
-      expect(protein + carbs + fat + fiber).toBeLessThanOrEqual(f.serving.grams);
-      expect(f.per.kcal).toBeLessThanOrEqual(f.serving.grams * 9);
+      const mass = protein + carbs + fat + fiber;
+      // grams in (0, 500]; macros can't weigh more than the serving; kcal <= 9 kcal/g
+      if (!(f.serving.grams > 0 && f.serving.grams <= 500)) bad.push(`${f.id}: grams ${f.serving.grams}`);
+      if (mass > f.serving.grams) bad.push(`${f.id}: macro mass ${mass} > ${f.serving.grams} g`);
+      if (f.per.kcal > f.serving.grams * 9) bad.push(`${f.id}: kcal ${f.per.kcal} > 9 kcal/g`);
     }
+    expect(bad).toEqual([]);
   });
 
   it('matches key household reference values', () => {
