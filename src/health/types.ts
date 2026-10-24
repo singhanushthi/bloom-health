@@ -103,4 +103,6 @@ export const LOCAL_SOURCE = {
   sensor: 'bloom:sensor',
   manual: 'bloom:manual',
   demo: 'bloom:demo',
+  /** Heart rate saved from a watch connected directly over Bluetooth (src/watch). */
+  watch: 'bloom:watch',
 } as const;

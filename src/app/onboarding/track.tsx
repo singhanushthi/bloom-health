@@ -37,14 +37,14 @@ export default function Track() {
       return;
     }
     await setTracks(ALL_TRACKS.filter((t) => sel.includes(t)));
-    router.push('/onboarding/connect');
+    router.push('/onboarding/profile');
   };
 
   return (
     <Screen>
       <View style={{ gap: space.xs, marginTop: space.md }}>
         <Text variant="label" tone="muted">
-          STEP 1 OF 3
+          STEP 1 OF 4
         </Text>
         <Text variant="title" accessibilityRole="header">
           What would you like to track?

@@ -1,10 +1,11 @@
 import { Tabs } from 'expo-router/js-tabs';
-import { CalendarHeart, ChartLine, Settings, Sun } from 'lucide-react-native';
+import { CalendarHeart, ChartLine, Flower2, Sun, Target } from 'lucide-react-native';
 import React from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 
+/** Bottom tabs (max 5): Today · Plan · Yoga · Cycle · Trends. Settings opens from the gear on Today. */
 export default function TabsLayout() {
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
@@ -35,11 +36,19 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="trends"
+        name="plan"
         options={{
-          title: 'Trends',
-          tabBarAccessibilityLabel: 'Trends, charts for 7 and 30 days',
-          tabBarIcon: ({ color, focused }) => <ChartLine size={24} color={color as string} strokeWidth={focused ? 2.4 : 1.8} />,
+          title: 'Plan',
+          tabBarAccessibilityLabel: 'Plan, weight, food and activity',
+          tabBarIcon: ({ color, focused }) => <Target size={24} color={color as string} strokeWidth={focused ? 2.4 : 1.8} />,
+        }}
+      />
+      <Tabs.Screen
+        name="yoga"
+        options={{
+          title: 'Yoga',
+          tabBarAccessibilityLabel: 'Yoga sessions',
+          tabBarIcon: ({ color, focused }) => <Flower2 size={24} color={color as string} strokeWidth={focused ? 2.4 : 1.8} />,
         }}
       />
       <Tabs.Screen
@@ -53,13 +62,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="settings"
+        name="trends"
         options={{
-          title: 'Settings',
-          tabBarAccessibilityLabel: 'Settings and data sources',
-          tabBarIcon: ({ color, focused }) => <Settings size={24} color={color as string} strokeWidth={focused ? 2.4 : 1.8} />,
+          title: 'Trends',
+          tabBarAccessibilityLabel: 'Trends, charts for 7 and 30 days',
+          tabBarIcon: ({ color, focused }) => <ChartLine size={24} color={color as string} strokeWidth={focused ? 2.4 : 1.8} />,
         }}
       />
+      {/* Still a route (/settings) — opened from the gear button on Today, hidden from the tab bar. */}
+      <Tabs.Screen name="settings" options={{ title: 'Settings', href: null }} />
     </Tabs>
   );
 }

@@ -2,7 +2,8 @@
  * Bloom design tokens. Semantic names only — components never use raw hex.
  *
  * Contrast rules (WCAG AA 4.5:1), verified for these values:
- *  - `ink` and `muted` are the only text colours. muted on bg/surface/soft ≥ 4.6:1.
+ *  - `ink` and `muted` are the general text colours (plus `cycleText` for cycle numbers/phases).
+ *    muted on bg/surface/soft ≥ 4.6:1.
  *  - Accent colours (cycle, steps, sleep, heart, spo2) are for graphics, icons and fills —
  *    never for body text.
  *  - `onInk` is the text colour used on top of an `ink` filled (primary) button.
@@ -24,6 +25,11 @@ export interface ColorTokens {
   danger: string;
   cycle: string;
   cycleSoft: string;
+  /**
+   * Deep rose for cycle phase names / numbers as TEXT on light and soft-pink surfaces
+   * (#A8325A on #F9DCE4 = 5.0:1, on white 6.4:1; dark #F5A3BA on dark surfaces ≥ 6.5:1).
+   */
+  cycleText: string;
   steps: string;
   stepsSoft: string;
   sleep: string;
@@ -56,6 +62,7 @@ const light: ColorTokens = {
   danger: '#B3261E',
   cycle: '#D9577B',
   cycleSoft: '#F9DCE4',
+  cycleText: '#A8325A',
   steps: '#D97A2B',
   stepsSoft: '#FBE6D2',
   sleep: '#5B5BD6',
@@ -84,6 +91,7 @@ const dark: ColorTokens = {
   danger: '#FF8A80',
   cycle: '#F07A9A',
   cycleSoft: soft('#F07A9A'),
+  cycleText: '#F5A3BA',
   steps: '#F0A15C',
   stepsSoft: soft('#F0A15C'),
   sleep: '#8A8AF0',

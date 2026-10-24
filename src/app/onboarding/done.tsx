@@ -24,7 +24,7 @@ export default function Done() {
         <CircleCheck size={48} color={c.spo2} />
         <View style={{ gap: space.xs }}>
           <Text variant="label" tone="muted">
-            STEP 3 OF 3
+            STEP 4 OF 4
           </Text>
           <Text variant="title" accessibilityRole="header">
             You’re all set
@@ -35,7 +35,7 @@ export default function Done() {
           <View style={{ gap: space.sm }}>
             <View style={{ flexDirection: 'row', gap: space.sm }}>
               <CalendarHeart size={20} color={c.cycle} />
-              <Text style={{ flex: 1 }}>Tap the “Log” button on Today to add a period, a day log, sleep or a reading.</Text>
+              <Text style={{ flex: 1 }}>Tap the “Log” button on Today to add weight, food, activity, a period, a day log, sleep or a reading.</Text>
             </View>
             <View style={{ flexDirection: 'row', gap: space.sm }}>
               <Sparkles size={20} color={c.sleep} />

@@ -75,7 +75,8 @@ describe('demo mode', () => {
   it('renders Today with demo data, sources, Ask Bloom and the Log button', async () => {
     await render(wrap(<Today />));
     expect(await screen.findByText(/Demo mode/, {}, find)).toBeTruthy();
-    expect(await screen.findByText(/DAY/, {}, find)).toBeTruthy();
+    expect(await screen.findByText("Today in your cycle", {}, find)).toBeTruthy();
+    expect(await screen.findByText(/^Day \d+$/, {}, find)).toBeTruthy();
     expect(await screen.findByText(/steps · goal 8,000/, {}, find)).toBeTruthy();
     expect(await screen.findByText(/bpm resting/, {}, find)).toBeTruthy();
     expect((await screen.findAllByText(/Source: /, {}, find)).length).toBeGreaterThan(3);
@@ -94,6 +95,15 @@ describe('demo mode', () => {
     expect(await screen.findByText('Save reading', {}, find)).toBeTruthy();
     fireEvent.press(screen.getByText('Save reading'));
     expect(await screen.findByText('Enter a number.', {}, find)).toBeTruthy();
+  });
+
+  it('FAB "Day log" opens the cycle day log with the extra fields', async () => {
+    await render(wrap(<Today />));
+    fireEvent.press(await screen.findByLabelText('Log', {}, find));
+    fireEvent.press(await screen.findByLabelText('Day log', {}, find));
+    expect(await screen.findByText('Pain level', {}, find)).toBeTruthy();
+    expect(screen.getByText('Pills or medication')).toBeTruthy();
+    expect(screen.getByText('Save day')).toBeTruthy();
   });
 
   it('renders Trends with demo data', async () => {

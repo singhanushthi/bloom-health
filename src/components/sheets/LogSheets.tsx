@@ -5,27 +5,24 @@
  * Every save writes to SQLite (src/db/repos) and bumps AppState.dataVersion so screens re-read.
  * Validation errors are shown inline under the field that caused them.
  */
-import { CalendarHeart, Droplet, HeartPulse, Moon, NotebookPen, Footprints } from 'lucide-react-native';
+import { router } from 'expo-router';
+import { Activity, CalendarHeart, Droplet, HeartPulse, Moon, NotebookPen, Footprints, Scale, Utensils } from 'lucide-react-native';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import {
-  DAY_FLOWS,
-  dayLogs,
   FLOWS,
   HR_RANGE,
-  MOODS,
   periods,
   sleepLogs,
   SPO2_RANGE,
   stepDays,
-  SYMPTOMS,
   ValidationError,
   vitals,
-  type DayFlow,
   type Flow,
   type VitalKind,
 } from '../../db/repos';
-import { dayStart, formatDay, toDayKey, todayKey, type DayKey } from '../../health/dates';
+import { dayStart, toDayKey, todayKey, type DayKey } from '../../health/dates';
+import { CycleDayLogSheet } from '../../cycle/DayLogSheet';
 import { useAppState } from '../../state/AppState';
 import { radius, space, touch } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
@@ -66,9 +63,17 @@ export function LogSheetsProvider({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={value}>
       {children}
-      <LogMenuSheet visible={state.kind === 'menu'} onClose={close} onPick={(k) => open(k)} />
+      <LogMenuSheet
+        visible={state.kind === 'menu'}
+        onClose={close}
+        onPick={(k) => open(k)}
+        onRoute={(href) => {
+          close();
+          router.push(href);
+        }}
+      />
       {state.kind === 'period' ? <PeriodSheet onClose={close} /> : null}
-      {state.kind === 'day' ? <DayLogSheet onClose={close} day={state.opts.day ?? todayKey()} /> : null}
+      {state.kind === 'day' ? <CycleDayLogSheet onClose={close} day={state.opts.day ?? todayKey()} /> : null}
       {state.kind === 'sleep' ? <SleepSheet onClose={close} /> : null}
       {state.kind === 'reading' ? <ReadingSheet onClose={close} initialKind={state.opts.kind ?? 'hr'} /> : null}
       {state.kind === 'steps' ? <StepsSheet onClose={close} /> : null}
@@ -82,15 +87,21 @@ function LogMenuSheet({
   visible,
   onClose,
   onPick,
+  onRoute,
 }: {
   visible: boolean;
   onClose: () => void;
   onPick: (k: SheetKind) => void;
+  onRoute: (href: string) => void;
 }) {
   const { c } = useTheme();
-  const items: { k: SheetKind; label: string; hint: string; icon: typeof Droplet; accent: string; soft: string }[] = [
+  // Plan logging lives on its own screens (src/app/weight, food, activity).
+  const items: { k: SheetKind | string; route?: string; label: string; hint: string; icon: typeof Droplet; accent: string; soft: string }[] = [
+    { k: 'weight', route: '/weight', label: 'Weight', hint: 'Morning or night weight in kg', icon: Scale, accent: c.spo2, soft: c.spo2Soft },
+    { k: 'food', route: '/food/add', label: 'Food', hint: 'Search, recent, favourites or AI quick add', icon: Utensils, accent: c.steps, soft: c.stepsSoft },
+    { k: 'activity', route: '/activity/add', label: 'Activity', hint: 'What you did today — walk, yoga, gym…', icon: Activity, accent: c.heart, soft: c.heartSoft },
     { k: 'period', label: 'Period', hint: 'Start date, end date and flow', icon: Droplet, accent: c.cycle, soft: c.cycleSoft },
-    { k: 'day', label: 'Day log', hint: 'Flow, symptoms, mood and a note for today', icon: NotebookPen, accent: c.cycle, soft: c.cycleSoft },
+    { k: 'day', label: 'Day log', hint: 'Flow, symptoms, mood, pain, energy, pills and a note', icon: NotebookPen, accent: c.cycle, soft: c.cycleSoft },
     { k: 'sleep', label: 'Sleep', hint: 'Bedtime, wake time and quality', icon: Moon, accent: c.sleep, soft: c.sleepSoft },
     { k: 'reading', label: 'Reading', hint: 'Heart rate or blood oxygen (SpO₂)', icon: HeartPulse, accent: c.heart, soft: c.heartSoft },
   ];
@@ -102,7 +113,7 @@ function LogMenuSheet({
           return (
             <Pressable
               key={it.k}
-              onPress={() => onPick(it.k)}
+              onPress={() => (it.route ? onRoute(it.route) : onPick(it.k as SheetKind))}
               accessibilityRole="button"
               accessibilityLabel={it.label}
               accessibilityHint={it.hint}
@@ -206,114 +217,6 @@ function PeriodSheet({ onClose }: { onClose: () => void }) {
       <Text variant="caption" tone="muted">
         Saved only on this phone. Predictions are estimates, not contraception advice.
       </Text>
-    </Sheet>
-  );
-}
-
-/* -------------------------------- Day log -------------------------------- */
-
-function DayLogSheet({ onClose, day }: { onClose: () => void; day: DayKey }) {
-  const { c } = useTheme();
-  const { bump } = useAppState();
-  const [flow, setFlow] = useState<DayFlow>('none');
-  const [symptoms, setSymptoms] = useState<string[]>([]);
-  const [moods, setMoods] = useState<string[]>([]);
-  const [note, setNote] = useState('');
-  const [loaded, setLoaded] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const isFuture = day > todayKey();
-
-  useEffect(() => {
-    let alive = true;
-    dayLogs
-      .get(day)
-      .then((l) => {
-        if (!alive || !l) return;
-        setFlow(l.flow === 'spotting' ? 'light' : (l.flow ?? 'none'));
-        setSymptoms(l.symptoms);
-        setMoods(l.moods);
-        setNote(l.note ?? '');
-      })
-      .catch(() => {})
-      .finally(() => alive && setLoaded(true));
-    return () => {
-      alive = false;
-    };
-  }, [day]);
-
-  const toggle = (list: string[], set: (v: string[]) => void, id: string) =>
-    set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
-
-  const save = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await dayLogs.upsert({ day, flow, symptoms, moods, note });
-      bump();
-      onClose();
-    } catch {
-      setError('Couldn’t save. Please try again.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const title = day === todayKey() ? 'Today’s log' : formatDay(day, { weekday: 'short', day: 'numeric', month: 'short' });
-
-  return (
-    <Sheet
-      visible
-      title={title}
-      onClose={onClose}
-      footer={
-        isFuture ? (
-          <Button label="Close" variant="secondary" onPress={onClose} />
-        ) : (
-          <Button label="Save day" onPress={save} loading={busy || !loaded} />
-        )
-      }
-    >
-      {isFuture ? (
-        <Text tone="muted">You can’t log a day in the future. Pick today or an earlier day.</Text>
-      ) : (
-        <>
-          <Field label="Flow">
-            <ChipRow label="Flow">
-              {DAY_FLOWS.map((f) => (
-                <ToggleChip key={f} label={cap(f)} role="radio" selected={flow === f} onPress={() => setFlow(f)} accent={c.cycle} soft={c.cycleSoft} />
-              ))}
-            </ChipRow>
-          </Field>
-          <Field label="Symptoms">
-            <ChipRow label="Symptoms">
-              {SYMPTOMS.map((s) => (
-                <ToggleChip key={s.id} label={s.label} selected={symptoms.includes(s.id)} onPress={() => toggle(symptoms, setSymptoms, s.id)} accent={c.cycle} soft={c.cycleSoft} />
-              ))}
-            </ChipRow>
-          </Field>
-          <Field label="Mood">
-            <ChipRow label="Mood">
-              {MOODS.map((m) => (
-                <ToggleChip key={m.id} label={m.label} selected={moods.includes(m.id)} onPress={() => toggle(moods, setMoods, m.id)} accent={c.sleep} soft={c.sleepSoft} />
-              ))}
-            </ChipRow>
-          </Field>
-          <Field label="Note (optional)" error={error}>
-            <Input
-              value={note}
-              onChangeText={setNote}
-              multiline
-              maxLength={500}
-              accessibilityLabel="Note"
-              style={{ minHeight: 96, paddingTop: space.sm, textAlignVertical: 'top' }}
-            />
-          </Field>
-          <Text variant="caption" tone="muted">
-            Flow logged here also counts as a period day. Notes stay on this phone and are never sent to the AI coach.
-          </Text>
-        </>
-      )}
     </Sheet>
   );
 }
@@ -553,7 +456,7 @@ export function LogFab({ bottomOffset = 0 }: { bottomOffset?: number }) {
       onPress={() => open('menu')}
       accessibilityRole="button"
       accessibilityLabel="Log"
-      accessibilityHint="Log a period, day, sleep or reading"
+      accessibilityHint="Log weight, food, activity, a period, day, sleep or reading"
       android_ripple={{ color: '#ffffff33', borderless: false }}
       style={({ pressed }) => ({
         position: 'absolute',

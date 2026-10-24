@@ -63,7 +63,7 @@ export default function Connect() {
     <Screen>
       <View style={{ gap: space.xs, marginTop: space.md }}>
         <Text variant="label" tone="muted">
-          STEP 2 OF 3 · OPTIONAL
+          STEP 3 OF 4 · OPTIONAL
         </Text>
         <Text variant="title" accessibilityRole="header">
           Connect Health Connect for all-day steps (and your watch/Flo if you use them)

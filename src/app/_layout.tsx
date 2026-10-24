@@ -14,9 +14,11 @@ import React, { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { CoachProvider } from '../ai/CoachState';
 import { LogSheetsProvider } from '../components/sheets/LogSheets';
+import { CycleReminderSync } from '../notify/ReminderSync';
 import { StepSensorProvider } from '../sensors/StepSensor';
 import { AppStateProvider, useAppState } from '../state/AppState';
 import { useTheme } from '../theme/useTheme';
+import { initWatchIfPaired } from '../watch/controller';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -36,6 +38,11 @@ function Root() {
     SystemUI.setBackgroundColorAsync(c.bg).catch(() => {});
   }, [c.bg]);
 
+  // Reconnect a directly paired watch. No-op (no Bluetooth touched) when none was paired.
+  useEffect(() => {
+    if (ready) void initWatchIfPaired();
+  }, [ready]);
+
   const done = (fontsLoaded || !!fontError) && ready;
   useEffect(() => {
     if (done) SplashScreen.hideAsync().catch(() => {});
@@ -46,6 +53,7 @@ function Root() {
   return (
     <>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+      <CycleReminderSync />
       <Stack
         screenOptions={{
           headerShown: false,

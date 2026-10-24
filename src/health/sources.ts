@@ -46,6 +46,7 @@ export function appName(pkg: string): string {
   if (pkg === LOCAL_SOURCE.log || pkg === LOCAL_SOURCE.manual) return 'Logged in Bloom';
   if (pkg === LOCAL_SOURCE.sensor) return 'Phone (while Bloom is open)';
   if (pkg === LOCAL_SOURCE.demo) return 'Demo data';
+  if (pkg === LOCAL_SOURCE.watch) return 'Watch (direct)';
   if (isPhoneOrigin(pkg)) return 'Phone (Health Connect)';
   if (KNOWN_APPS[pkg]) return KNOWN_APPS[pkg];
   if (/noise/i.test(pkg)) return 'NoiseFit';

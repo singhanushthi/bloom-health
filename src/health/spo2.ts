@@ -17,7 +17,7 @@ export async function getLatestSpo2(ctx: ReadContext): Promise<MetricResult<Spo2
     let best: { percent: number; time: string; origin: string } | null = null;
     const local = await vitals.latest('spo2');
     if (local && new Date(local.time) >= since)
-      best = { percent: Math.round(local.value), time: local.time, origin: LOCAL_SOURCE.log };
+      best = { percent: Math.round(local.value), time: local.time, origin: local.source || LOCAL_SOURCE.log };
 
     if (hcCan(ctx, 'OxygenSaturation')) {
       try {

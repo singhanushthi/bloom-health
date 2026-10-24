@@ -114,7 +114,7 @@ export async function getTrends(ctx: ReadContext, range: TrendRange): Promise<Me
       const logged = await vitals.listBetween('hr', start, now);
       if (logged.length) {
         hrKind = 'readings';
-        heartSrc.push(LOCAL_SOURCE.log);
+        heartSrc.push(...uniq(logged.map((v) => v.source || LOCAL_SOURCE.log)));
         restingHr = mean(logged.map((v) => ({ day: toDayKey(v.time), v: v.value })));
       }
     }

@@ -3,7 +3,7 @@
     "name": "Bloom",
     "slug": "bloom-health",
     "scheme": "bloom",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -13,7 +13,7 @@
     "backgroundColor": "#FBF6F1",
     "android": {
       "package": "com.bloomhealth.app",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#F9DCE4",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -33,11 +33,17 @@
         "android.permission.health.READ_RESTING_HEART_RATE",
         "android.permission.health.READ_OXYGEN_SATURATION",
         "android.permission.health.READ_MENSTRUATION",
-        "android.permission.health.READ_HEALTH_DATA_HISTORY"
+        "android.permission.health.READ_HEALTH_DATA_HISTORY",
+        "android.permission.health.READ_WEIGHT",
+        "android.permission.health.WRITE_WEIGHT",
+        "android.permission.health.WRITE_NUTRITION",
+        "android.permission.health.WRITE_EXERCISE"
       ],
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
     },
     "plugins": [
@@ -71,7 +77,29 @@
       "expo-sharing",
       "@react-native-community/datetimepicker",
       "expo-secure-store",
-      "./plugins/withReleaseSigning"
+      "./plugins/withReleaseSigning",
+      [
+        "expo-notifications",
+        {
+          "color": "#D9577B"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Bloom uses the camera only to scan barcodes on food products you add to your kitchen.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "modes": [],
+          "neverForLocation": true,
+          "bluetoothAlwaysPermission": "Bloom uses Bluetooth to read heart rate from a watch you connect directly."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false

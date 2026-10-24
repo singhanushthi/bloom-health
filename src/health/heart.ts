@@ -38,7 +38,10 @@ export async function getHeartToday(ctx: ReadContext): Promise<MetricResult<Hear
     // Local readings
     const logged = await vitals.listBetween('hr', start, now);
     for (const v of logged) consider(v.value, v.time);
-    if (logged.length) sources.push(LOCAL_SOURCE.log);
+    for (const v of logged) {
+      const src = v.source || LOCAL_SOURCE.log;
+      if (!sources.includes(src)) sources.push(src);
+    }
 
     // Health Connect (optional)
     const m = hc();
