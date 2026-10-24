@@ -249,7 +249,7 @@ describe('recipe matcher', () => {
   });
 
   it('boosts protein when protein is behind and notes the fit', () => {
-    const pantry = ['paneer', 'onion', 'tomato', 'capsicum', 'cucumber', 'curd', 'rice', 'tori', 'lauki', 'chana-dal'];
+    const pantry = ['paneer', 'onion', 'tomato', 'capsicum', 'green-chilli', 'cucumber', 'curd', 'rice', 'tori', 'lauki', 'chana-dal'];
     const behind = rankRecipes({ recipes: RECIPES, pantryKeys: pantry, diet: 'veg', hour: 13, remainingKcal: 1000, remainingProtein: 50, proteinTarget: 70 });
     const top = cookNow(behind, 1)[0];
     expect(top.recipe.perServing.protein).toBeGreaterThanOrEqual(15);

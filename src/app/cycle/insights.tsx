@@ -122,7 +122,7 @@ export default function CycleInsights() {
         <Card>
           <CardHeader icon={Droplet} label="Symptom patterns" accent={c.cycle} soft={c.cycleSoft} />
           {o.patterns.length ? (
-            o.patterns.slice(0, 6).map((p, i) => (
+            o.patterns.slice(0, 8).map((p, i) => (
               <View key={p.id} accessible accessibilityLabel={`${p.text}. Seen in ${p.cycles} of ${p.outOf} cycles.`} style={{ paddingVertical: space.xs, borderTopWidth: i ? 1 : 0, borderTopColor: c.line }}>
                 <Text variant="bodyStrong">{p.text}</Text>
                 <Text variant="caption" tone="muted">

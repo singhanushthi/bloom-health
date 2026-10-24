@@ -110,8 +110,11 @@ export function parseFreeText(text: string): ParseResult {
   return { keys, unknown: Array.from(new Set(unknown)).slice(0, 10) };
 }
 
-/** Best single ingredient for a product name ("Amul Malai Paneer 200g" → paneer), or null. */
+/**
+ * Best single ingredient for a product or recipe-ingredient name, or null. The LAST match wins,
+ * because the noun usually comes last ("Amul Malai Paneer 200g" → paneer, "Rolled Oats" → oats).
+ */
 export function guessIngredientKey(productName: string): string | null {
   const { keys } = parseFreeText(productName);
-  return keys[0] ?? null;
+  return keys.length ? keys[keys.length - 1] : null;
 }

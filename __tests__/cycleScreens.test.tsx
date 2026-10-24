@@ -79,14 +79,14 @@ describe('demo mode', () => {
     expect(screen.getByText('Movement')).toBeTruthy();
     expect(screen.getByText('Self-care')).toBeTruthy();
     // Peek at another phase
-    fireEvent.press(screen.getByLabelText('PMS'));
+    await fireEvent.press(screen.getByLabelText('PMS'));
     expect(await screen.findByText('The days before your period', {}, find)).toBeTruthy();
   });
 
   it('Insights: averages, chart summary, patterns from demo logs, mood by phase', async () => {
     await render(wrap(<Insights />));
     expect(await screen.findByText(/Cramps (usually|often) on/, {}, find)).toBeTruthy();
-    expect(screen.getByText(/before your period/)).toBeTruthy();
+    expect(screen.getAllByText(/days? before your period/).length).toBeGreaterThan(0);
     expect(screen.getByLabelText(/Cycle lengths for your last/)).toBeTruthy();
     expect(screen.getAllByText(/Mostly/).length).toBeGreaterThan(0);
   });
@@ -110,8 +110,8 @@ describe('live mode', () => {
   it('first time: setup → saves the last period and shows predictions', async () => {
     await render(wrap(<Cycle />));
     expect(await screen.findByText('Let’s get to know your cycle', {}, find)).toBeTruthy();
-    fireEvent.press(screen.getByLabelText('More days for How long is your cycle, usually?'));
-    fireEvent.press(screen.getByText('Save and see my cycle'));
+    await fireEvent.press(screen.getByLabelText('More days for How long is your cycle, usually?'));
+    await fireEvent.press(screen.getByText('Save and see my cycle'));
     expect(await screen.findByText(/Cycle history/i, {}, find)).toBeTruthy();
     const list = await periods.list();
     expect(list).toHaveLength(1);
@@ -123,21 +123,21 @@ describe('live mode', () => {
     await saveCycleSettings({ setupDone: true });
     await periods.add({ startDay: addDays(todayKey(), -30), endDay: addDays(todayKey(), -26) });
     await render(wrap(<Cycle />));
-    fireEvent.press(await screen.findByText('Period started today', {}, find));
+    await fireEvent.press(await screen.findByText('Period started today', {}, find));
     expect(await screen.findByText('Period ended today', {}, find)).toBeTruthy();
     expect((await periods.list()).some((p) => p.startDay === todayKey() && p.endDay === null)).toBe(true);
-    fireEvent.press(screen.getByText('Period ended today'));
+    await fireEvent.press(screen.getByText('Period ended today'));
     await waitFor(async () => expect((await periods.list()).find((p) => p.startDay === todayKey())?.endDay).toBe(todayKey()), find);
   });
 
   it('day log sheet saves extras', async () => {
     const onClose = jest.fn();
     await render(wrap(<CycleDayLogSheet day={todayKey()} onClose={onClose} />));
-    fireEvent.press(await screen.findByLabelText('2 · Moderate', {}, find));
-    fireEvent.press(screen.getByLabelText('Egg-white'));
-    fireEvent.changeText(screen.getByLabelText('Pill or medication name'), 'Meftal');
-    fireEvent.press(screen.getByLabelText('Add pill or medication'));
-    fireEvent.press(screen.getByText('Save day'));
+    await fireEvent.press(await screen.findByLabelText('2 · Moderate', {}, find));
+    await fireEvent.press(screen.getByLabelText('Egg-white'));
+    await fireEvent.changeText(screen.getByLabelText('Pill or medication name'), 'Meftal');
+    await fireEvent.press(screen.getByLabelText('Add pill or medication'));
+    await fireEvent.press(screen.getByText('Save day'));
     await waitFor(() => expect(onClose).toHaveBeenCalled(), find);
     expect(await dayExtras.get(todayKey())).toMatchObject({ pain: 2, discharge: 'egg_white', meds: ['Meftal'] });
   });
@@ -146,7 +146,7 @@ describe('live mode', () => {
     await render(wrap(<CycleSettingsSection />));
     const sw = await screen.findByLabelText('Fertile window starts', {}, find);
     expect(screen.getByLabelText('Discreet wording').props.value).toBe(true);
-    fireEvent(sw, 'valueChange', true);
+    await fireEvent(sw, 'valueChange', true);
     await waitFor(() => expect(mockNotif.requestPermissionsAsync).toHaveBeenCalled(), find);
     await waitFor(async () => expect((await loadCycleSettings()).reminders.fertile).toBe(true), find);
     expect(screen.getByLabelText('Hide cycle data on Today')).toBeTruthy();

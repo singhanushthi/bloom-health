@@ -198,7 +198,7 @@ const RAW: Raw[] = [
     diet: 'vegan',
     time: 25,
     serves: 2,
-    ing: 'moong-dal 120; tomato 1pc; ginger 5; green-chilli 1pc; cumin 1tsp; salt 1tsp; oil 2tsp; coriander-leaves? 10; paneer? 40',
+    ing: 'moong-dal 120; tomato 1pc; ginger 5; green-chilli 1pc; cumin 1tsp; salt 1tsp; oil 2tsp; coriander-leaves? 10; tofu? 40',
     steps: [
       'Soak the moong dal for 2–4 hours (or overnight), then drain.',
       'Grind it with ginger, green chilli, cumin, salt and a little water into a smooth, pourable batter.',
@@ -206,7 +206,7 @@ const RAW: Raw[] = [
       'Heat a non-stick tawa and wipe it with a few drops of oil.',
       'Pour a ladle of batter and spread it into a thin circle.',
       'Cook 2 minutes until the edges lift, flip, and cook 1 more minute.',
-      'Serve hot with green chutney or curd. Crumble a little paneer inside if you like.',
+      'Serve hot with green chutney. Fold a little crumbled tofu inside for extra protein if you like.',
     ],
     tags: ['iron-rich'],
     tip: 'Soak the dal at night so breakfast takes only 15 minutes.',
