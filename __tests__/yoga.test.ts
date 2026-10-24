@@ -219,3 +219,31 @@ describe('store', () => {
     expect((await loadPrefs()).level).toBe('intermediate');
   });
 });
+
+describe('pose figures', () => {
+  it('draws every pose used in Beginner sessions (incl. Surya Namaskar)', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const content = require('../src/content/yoga') as typeof import('../src/content/yoga');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { figureKeyFor } = require('../src/yoga/PoseFigure') as typeof import('../src/yoga/PoseFigure');
+    const ids = new Set(
+      content.SESSIONS.filter((s) => s.level === 'beginner').flatMap((s) => s.items.map((i) => i.poseId))
+    );
+    for (const id of ['prayer', 'upward-salute', 'standing-forward-fold', 'low-lunge', 'plank', 'knees-chest-chin', 'cobra', 'downward-dog', 'mountain'])
+      ids.add(id);
+    const missing = [...ids].filter((id) => {
+      const p = content.POSES.find((x) => x.id === id);
+      return !p || figureKeyFor(p) === null;
+    });
+    expect(missing).toEqual([]);
+  });
+
+  it('every session references known poses and builds a playlist', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const content = require('../src/content/yoga') as typeof import('../src/content/yoga');
+    for (const s of content.SESSIONS) {
+      const p = buildPlaylist(s, content.POSES, { onPeriod: true });
+      expect(p.steps.every((x) => x.pose !== null)).toBe(true);
+    }
+  });
+});
