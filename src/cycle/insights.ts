@@ -190,16 +190,31 @@ export function detectSymptomPatterns(input: PatternInput): SymptomPattern[] {
   const outOf = loggedCycles.size;
   if (outOf < MIN_PATTERN_CYCLES) return [];
 
+  // Best single day by number of cycles, then widen to a neighbouring day that also shows up
+  // in at least half as many cycles (so "days 1–2" rather than just "day 1").
   const best = (m: Map<number, Set<number>>, max: number) => {
-    let top: { from: number; to: number; n: number } | null = null;
+    let day = 0;
+    let n = 0;
     for (let d = 1; d <= max; d++) {
-      const one = m.get(d)?.size ?? 0;
-      const two = new Set([...(m.get(d) ?? []), ...(m.get(d + 1) ?? [])]).size;
-      // Prefer the single day when it explains as many cycles as the pair.
-      const cand = one >= two ? { from: d, to: d, n: one } : { from: d, to: d + 1, n: two };
-      if (!top || cand.n > top.n || (cand.n === top.n && cand.to - cand.from < top.to - top.from)) top = cand;
+      const k = m.get(d)?.size ?? 0;
+      if (k > n) {
+        day = d;
+        n = k;
+      }
     }
-    return top;
+    if (!n) return null;
+    const need = Math.max(MIN_PATTERN_CYCLES, Math.ceil(n / 2));
+    const left = day > 1 ? (m.get(day - 1)?.size ?? 0) : 0;
+    const right = day < max ? (m.get(day + 1)?.size ?? 0) : 0;
+    let from = day;
+    let to = day;
+    if (Math.max(left, right) >= need) {
+      if (right >= left) to = day + 1;
+      else from = day - 1;
+    }
+    const union = new Set<number>();
+    for (let d = from; d <= to; d++) m.get(d)?.forEach((x) => union.add(x));
+    return { from, to, n: union.size };
   };
 
   const out: SymptomPattern[] = [];

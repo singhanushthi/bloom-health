@@ -1,68 +1,69 @@
 /**
- * Cycle: month calendar of logged and predicted period days + cycle history.
- * Period days come from Bloom's own logs, merged with Health Connect (e.g. Flo) when connected.
- * Tap any day (today or earlier) to open that day's log.
+ * Cycle tab — Bloom's own, complete period tracker (no Flo needed).
  *
- * Non-colour encoding:
- *  - Logged period day: filled circle + droplet icon.
- *  - Predicted period day: dashed outline circle (no fill) + small "dashed" legend.
- *  - Estimated ovulation window: dotted underline.
- *  - Today: bold number + ring.
- *  - Day with a symptom/mood log: small note-pen dot under the number.
+ *  - First time (nothing logged): a short setup (last period, usual lengths, irregular, goal).
+ *  - "Today" hero: cycle day, phase, next period (or range), confidence, fertile window by goal.
+ *  - Late banner, one-tap "Period started today" / "Period ended today", "Log today".
+ *  - Next 3 periods, calendar (logged / predicted / possible / fertile / ovulation / PMS),
+ *    ideas for this phase, your periods (edit/delete), links to insights and settings.
+ * Health Connect periods (e.g. from Flo) are merged in when connected — optional.
  */
-import { ChevronLeft, ChevronRight, CircleAlert, Droplet, Flower2, Info, Lock, NotebookPen } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { router } from 'expo-router';
+import {
+  CalendarCheck,
+  CalendarPlus,
+  ChartColumn,
+  CircleAlert,
+  Droplet,
+  Info,
+  Lock,
+  NotebookPen,
+  Pencil,
+  Plus,
+  Settings2,
+  Sparkles,
+} from 'lucide-react-native';
+import React, { useState } from 'react';
+import { View } from 'react-native';
 import { SourceTag } from '../../components/cards';
-import { useLogSheets } from '../../components/sheets/LogSheets';
-import Svg, { Circle, Line } from 'react-native-svg';
 import { DemoBanner } from '../../components/DemoBanner';
 import { Screen } from '../../components/Screen';
-import { Button, Card, CardHeader, CardSkeleton, EmptyNote, IconButton, Text } from '../../components/ui';
-import { getCycleStatus, PHASE_LABEL } from '../../health';
-import { addDays, formatDay, todayKey, type DayKey } from '../../health/dates';
-import { useMetric } from '../../hooks/useMetric';
+import { Button, Card, CardHeader, CardSkeleton, Chip, EmptyNote, IconButton, Text } from '../../components/ui';
+import { CycleCalendar } from '../../cycle/CycleCalendar';
+import { CycleSetup } from '../../cycle/CycleSetup';
+import { CycleDayLogSheet } from '../../cycle/DayLogSheet';
+import { useCycleOverview, useCycleSettings } from '../../cycle/hooks';
+import { LateBanner } from '../../cycle/LateBanner';
+import { ContraceptionNote, LinkRow } from '../../cycle/parts';
+import { PeriodEditSheet } from '../../cycle/PeriodEditSheet';
+import { PhaseSuggestionsCard } from '../../cycle/PhaseSuggestionsCard';
+import { endPeriodToday, startPeriodToday } from '../../cycle/store';
+import { PHASE_TITLE } from '../../cycle/suggestions';
+import { fertileText, nextPeriodText, shortDay, upcomingRows } from '../../cycle/text';
+import { useCycleColors } from '../../cycle/theme';
+import type { PeriodLog } from '../../db/repos';
+import { CONFIDENCE_LABEL } from '../../health/cyclePrediction';
+import { formatDay, todayKey, type DayKey } from '../../health/dates';
+import { useCycleReminderSync } from '../../notify/sync';
+import { useAppState } from '../../state/AppState';
 import { space } from '../../theme/tokens';
-import { useTheme } from '../../theme/useTheme';
-
-const pad = (n: number) => String(n).padStart(2, '0');
-
-function monthGrid(year: number, month: number): (DayKey | null)[] {
-  const first = new Date(year, month, 1);
-  // Monday-first week
-  const lead = (first.getDay() + 6) % 7;
-  const daysIn = new Date(year, month + 1, 0).getDate();
-  const cells: (DayKey | null)[] = Array(lead).fill(null);
-  for (let d = 1; d <= daysIn; d++) cells.push(`${year}-${pad(month + 1)}-${pad(d)}`);
-  while (cells.length % 7) cells.push(null);
-  return cells;
-}
-
-const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 export default function CycleScreen() {
-  const { c } = useTheme();
-  const { loading, result, reload } = useMetric(getCycleStatus);
-  const { open } = useLogSheets();
+  const { c, cycleText } = useCycleColors();
+  const { bump, demoMode } = useAppState();
+  const { settings, loading: settingsLoading } = useCycleSettings();
+  const { loading, result, reload } = useCycleOverview();
   const [refreshing, setRefreshing] = useState(false);
-  const now = new Date();
-  const [cursor, setCursor] = useState({ y: now.getFullYear(), m: now.getMonth() });
+  const [sheetDay, setSheetDay] = useState<DayKey | null>(null);
+  const [editing, setEditing] = useState<PeriodLog | 'new' | null>(null);
+  const [busy, setBusy] = useState<'start' | 'end' | null>(null);
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
+  useCycleReminderSync();
   const today = todayKey();
 
-  const d = result?.data;
-  const logged = useMemo(() => new Set(d?.periods.flatMap((p) => spanDays(p.start, p.end)) ?? []), [d]);
-  const predicted = useMemo(() => new Set(d?.predictedDays ?? []), [d]);
-  const fertile = useMemo(() => new Set(d?.predictedFertileDays ?? []), [d]);
-  const noted = useMemo(() => new Set(d?.loggedDays ?? []), [d]);
-
-  const cells = monthGrid(cursor.y, cursor.m);
-  const monthLabel = new Date(cursor.y, cursor.m, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-  const shift = (delta: number) =>
-    setCursor(({ y, m }) => {
-      const nm = m + delta;
-      return { y: y + Math.floor(nm / 12), m: ((nm % 12) + 12) % 12 };
-    });
+  const o = result?.data ?? null;
+  const d = o?.cycle ?? null;
+  const goal = d?.settings.goal ?? settings.goal;
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -70,273 +71,242 @@ export default function CycleScreen() {
     setRefreshing(false);
   };
 
-  const cellSize = 44;
-  const sourceOf = (start: DayKey) => {
-    const p = d?.sourcedPeriods.find((x) => x.start === start);
-    if (!p) return '';
-    return p.sources.map((s) => (s === 'local' ? 'Logged in Bloom' : 'Health Connect')).join(' + ');
+  const quick = async (kind: 'start' | 'end') => {
+    if (demoMode) {
+      setActionMsg('Demo mode is on — turn it off in Settings to log your own periods.');
+      return;
+    }
+    setBusy(kind);
+    setActionMsg(null);
+    try {
+      if (kind === 'start') {
+        await startPeriodToday(today);
+        setActionMsg('Saved — period started today.');
+      } else {
+        const ok = await endPeriodToday(today);
+        setActionMsg(ok ? 'Saved — period ended today.' : 'No open period to end.');
+      }
+      bump();
+    } catch {
+      setActionMsg('Couldn’t save. Please try again.');
+    } finally {
+      setBusy(null);
+    }
   };
 
-  const calendar = (
-    <Card>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.sm }}>
-        <IconButton icon={ChevronLeft} onPress={() => shift(-1)} accessibilityLabel="Previous month" />
-        <Text variant="heading" accessibilityRole="header" accessibilityLiveRegion="polite">
-          {monthLabel}
-        </Text>
-        <IconButton icon={ChevronRight} onPress={() => shift(1)} accessibilityLabel="Next month" />
-      </View>
-      <View style={{ flexDirection: 'row' }} importantForAccessibility="no-hide-descendants">
-        {WEEKDAYS.map((w, i) => (
-          <Text key={i} variant="label" tone="muted" style={{ flex: 1, textAlign: 'center' }}>
-            {w}
-          </Text>
-        ))}
-      </View>
-      <View style={{ marginTop: space.xs }}>
-        {Array.from({ length: cells.length / 7 }, (_, row) => (
-          <View key={row} style={{ flexDirection: 'row' }}>
-            {cells.slice(row * 7, row * 7 + 7).map((day, col) => {
-              if (!day) return <View key={col} style={{ flex: 1, height: cellSize + 4 }} />;
-              const isLogged = logged.has(day);
-              const isPred = !isLogged && predicted.has(day);
-              const isFertile = !isLogged && !isPred && fertile.has(day);
-              const isToday = day === today;
-              const isFuture = day > today;
-              const hasNote = noted.has(day);
-              const num = Number(day.slice(8));
-              const parts = [
-                `${WEEKDAY_NAMES[col]} ${formatDay(day, { day: 'numeric', month: 'long' })}`,
-                isToday ? 'today' : '',
-                isLogged ? 'period day, logged' : '',
-                isPred ? 'predicted period day, estimate' : '',
-                isFertile ? 'estimated ovulation window' : '',
-                hasNote ? 'has a day log' : '',
-              ].filter(Boolean);
-              return (
-                <Pressable
-                  key={col}
-                  disabled={isFuture}
-                  onPress={() => open('day', { day })}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: isFuture }}
-                  accessibilityLabel={parts.join(', ')}
-                  accessibilityHint={isFuture ? undefined : 'Opens the log for this day'}
-                  android_ripple={{ color: c.line, borderless: true, radius: 22 }}
-                  style={{ flex: 1, height: cellSize + 4, alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <View style={{ width: cellSize, height: cellSize, alignItems: 'center', justifyContent: 'center' }}>
-                    <Svg width={cellSize} height={cellSize} style={{ position: 'absolute' }}>
-                      {isLogged ? (
-                        <Circle cx={22} cy={22} r={18} fill={c.cycleSoft} stroke={c.cycle} strokeWidth={2.5} />
-                      ) : null}
-                      {isPred ? (
-                        <Circle cx={22} cy={22} r={18} fill="none" stroke={c.cycle} strokeWidth={2} strokeDasharray="4 3" />
-                      ) : null}
-                      {isToday && !isLogged ? (
-                        <Circle cx={22} cy={22} r={20} fill="none" stroke={c.ink} strokeWidth={1.5} />
-                      ) : null}
-                      {isToday && isLogged ? (
-                        <Circle cx={22} cy={22} r={21} fill="none" stroke={c.ink} strokeWidth={2} />
-                      ) : null}
-                      {isFertile ? (
-                        <Line x1={12} x2={32} y1={37} y2={37} stroke={c.spo2} strokeWidth={2.5} strokeDasharray="2 3" strokeLinecap="round" />
-                      ) : null}
-                    </Svg>
-                    <Text variant={isToday || isLogged ? 'bodyStrong' : 'body'}>{num}</Text>
-                    {isLogged ? (
-                      <View style={{ position: 'absolute', top: 1, right: 1 }}>
-                        <Droplet size={12} color={c.cycle} fill={c.cycle} />
-                      </View>
-                    ) : null}
-                    {hasNote ? (
-                      <View style={{ position: 'absolute', bottom: 0, left: 2 }}>
-                        <NotebookPen size={11} color={c.ink} />
-                      </View>
-                    ) : null}
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        ))}
-      </View>
-      <Legend />
-      <Text variant="caption" tone="muted" style={{ marginTop: space.sm }}>
-        Tap a day to log flow, symptoms, mood or a note.
+  const header = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
+      <Text variant="display" accessibilityRole="header" style={{ flex: 1 }}>
+        Cycle
       </Text>
-    </Card>
+      <IconButton icon={ChartColumn} onPress={() => router.push('/cycle/insights')} accessibilityLabel="Cycle insights" />
+      <IconButton icon={Settings2} onPress={() => router.push('/cycle/settings')} accessibilityLabel="Cycle settings and reminders" />
+    </View>
   );
 
-  const logButton = (
-    <Button label="Log period" icon={Droplet} onPress={() => open('period')} />
+  const calendar = <CycleCalendar data={d} today={today} goal={goal} onDayPress={setSheetDay} />;
+
+  const openLog = d?.periodLogs.filter((p) => !p.endDay).slice(-1)[0] ?? null;
+  const last = d?.periods[d.periods.length - 1];
+  const inPeriodNow = !!last && today <= last.end && today >= last.start;
+
+  const quickActions = (
+    <View style={{ gap: space.xs }}>
+      {openLog ? (
+        <Button
+          label="Period ended today"
+          icon={CalendarCheck}
+          onPress={() => quick('end')}
+          loading={busy === 'end'}
+          accessibilityHint={`Marks the period that started ${formatDay(openLog.startDay, { day: 'numeric', month: 'long' })} as ended today`}
+        />
+      ) : !inPeriodNow ? (
+        <Button label="Period started today" icon={Droplet} onPress={() => quick('start')} loading={busy === 'start'} accessibilityHint="Logs today as the first day of your period" />
+      ) : null}
+      <Button label="Log today" icon={NotebookPen} variant="secondary" onPress={() => setSheetDay(today)} accessibilityHint="Flow, pain, symptoms, mood and more" />
+      {actionMsg ? (
+        <Text tone={actionMsg.startsWith('Couldn') ? 'danger' : 'muted'} accessibilityLiveRegion="polite">
+          {actionMsg}
+        </Text>
+      ) : null}
+    </View>
   );
 
   const body = () => {
-    if (loading && !result) return <CardSkeleton label="cycle calendar" height={420} />;
+    if ((loading && !result) || settingsLoading) return <CardSkeleton label="cycle" height={420} />;
     if (!result) return null;
-    if (result.status !== 'ok' || !d) {
+    if (result.status === 'denied' || result.status === 'error') {
+      return (
+        <Card>
+          <EmptyNote
+            icon={result.status === 'denied' ? Lock : CircleAlert}
+            accent={c.cycle}
+            title={result.status === 'denied' ? 'Permission needed' : 'Couldn’t read cycle data'}
+            body={result.status === 'denied' ? 'Allow Menstruation in Settings → Health Connect.' : `Pull down to retry. ${result.error ?? ''}`}
+          />
+        </Card>
+      );
+    }
+    if (!d || !d.hasData) {
+      if (!demoMode && !settings.setupDone) return <CycleSetup />;
       return (
         <>
-          <Card>
+          <Card tint={c.cycleSoft}>
             <EmptyNote
-              icon={result.status === 'denied' ? Lock : CircleAlert}
+              icon={Droplet}
               accent={c.cycle}
-              title={result.status === 'denied' ? 'Permission needed' : result.status === 'error' ? "Couldn't read cycle data" : 'No period logged yet'}
-              body={
-                result.status === 'denied'
-                  ? 'Allow Menstruation in Settings → Health Connect → Manage permissions.'
-                  : result.status === 'error'
-                    ? `Pull down to retry. ${result.error ?? ''}`
-                    : 'Log your last period to see your cycle day and an estimate of the next one. If you use Flo, you can also connect it in Settings.'
-              }
+              title="No period logged yet"
+              body="Tap “Period started today” when it starts, or add a past period to see predictions straight away."
             />
+            <ContraceptionNote style={{ marginTop: space.sm }} />
           </Card>
-          {logButton}
+          {quickActions}
+          <Button label="Add a past period" icon={CalendarPlus} variant="secondary" onPress={() => setEditing('new')} />
           {calendar}
         </>
       );
     }
 
+    const p = d.predictions;
+    const phase = d.phaseDetail;
+    const fert = fertileText(p, goal, today);
+    const heroLabel = [
+      `Cycle day ${d.cycleDay}`,
+      phase ? PHASE_TITLE[phase] : '',
+      nextPeriodText(p, today),
+      `${CONFIDENCE_LABEL[p.confidence]}, based on ${p.cyclesUsed ? `${p.cyclesUsed} cycles` : 'your usual cycle length'}`,
+      goal !== 'track' && fert ? fert : '',
+      'Estimates only. Not a method of contraception.',
+    ]
+      .filter(Boolean)
+      .join('. ');
+
     return (
       <>
         <Card tint={c.cycleSoft}>
-          <CardHeader icon={Flower2} label="Summary" accent={c.cycle} soft={c.surface} />
-          <View style={{ flexDirection: 'row', gap: space.lg }}>
-            <Metric label="Avg cycle" value={`${d.averageCycleLength}`} unit="days" />
-            <Metric label="Avg period" value={`${d.averagePeriodLength}`} unit="days" />
-            <Metric label="Phase" value={d.phase ? PHASE_LABEL[d.phase].split(' ')[0] : '—'} unit={d.cycleDay ? `day ${d.cycleDay}` : ''} />
+          <View accessible accessibilityLabel={heroLabel}>
+            <CardHeader
+              icon={Sparkles}
+              label="Today"
+              accent={c.cycle}
+              soft={c.surface}
+              right={<Chip label={CONFIDENCE_LABEL[p.confidence]} bg={c.surface} />}
+            />
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: space.xs }}>
+              <Text variant="label" tone="muted" style={{ marginBottom: 12 }}>
+                DAY
+              </Text>
+              <Text variant="hero" style={{ color: cycleText }}>
+                {d.cycleDay}
+              </Text>
+              <Text tone="muted" style={{ marginBottom: 10 }}>
+                of ~{p.cycleLength}
+              </Text>
+            </View>
+            {phase ? (
+              <Text variant="title" style={{ color: cycleText }}>
+                {PHASE_TITLE[phase]}
+              </Text>
+            ) : null}
+            <Text variant="bodyStrong" style={{ marginTop: space.xs }}>
+              {nextPeriodText(p, today)}
+            </Text>
+            {fert ? (
+              <Text tone={goal === 'track' ? 'muted' : 'ink'} variant={goal === 'track' ? 'body' : 'bodyStrong'} style={{ marginTop: space.xxs }}>
+                {fert}
+              </Text>
+            ) : null}
+            <Text variant="caption" tone="muted" style={{ marginTop: space.sm }}>
+              {p.cyclesUsed >= 2 ? `Based on your last ${p.cyclesUsed} cycles` : `Based on your usual ${p.cycleLength}-day cycle until you log 2 cycles`}
+              {p.irregular ? ` · ${p.irregularSource === 'detected' ? 'your cycles vary, so dates are a range' : 'irregular cycles: dates are a range'}` : ''}.
+            </Text>
+            <ContraceptionNote />
+            <SourceTag sources={result.sources} fallback="Logged in Bloom" />
           </View>
-          <Text variant="caption" tone="muted" style={{ marginTop: space.sm }}>
-            Predictions are estimates from {d.usedDefault ? 'a default 28-day cycle (log 2+ cycles for a personal average)' : `your last ${d.cyclesUsed} cycles`}. Not for contraception or medical use.
-          </Text>
-          <SourceTag sources={result.sources} fallback="Logged in Bloom" />
         </Card>
 
-        {logButton}
+        {p.showLateBanner ? <LateBanner daysLate={p.daysLate} goal={goal} compact /> : null}
 
-        {calendar}
-
-        {d.partialHistory ? (
-          <Card tint={c.stepsSoft}>
-            <EmptyNote
-              icon={Info}
-              accent={c.steps}
-              title="Only recent history available"
-              body="Allow “Access past data” for Bloom in Health Connect to include cycles older than 30 days."
-            />
-          </Card>
-        ) : null}
+        {quickActions}
 
         <Card>
-          <CardHeader icon={Droplet} label="Cycle history" accent={c.cycle} soft={c.cycleSoft} />
-          {d.history.slice(0, 12).map((h, i) => (
+          <CardHeader icon={CalendarPlus} label="Next periods" accent={c.cycle} soft={c.cycleSoft} />
+          {upcomingRows(p).map((row, i) => (
             <View
-              key={h.start}
+              key={row.key}
               accessible
-              accessibilityLabel={`Cycle starting ${formatDay(h.start, { day: 'numeric', month: 'long', year: 'numeric' })}${sourceOf(h.start) ? `, ${sourceOf(h.start)}` : ''}. ${
-                h.cycleLength === null ? 'Current cycle' : `${h.cycleLength} day cycle${h.counted ? '' : ', excluded from average as unusual'}`
-              }. Period ${h.periodLength} days.`}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                minHeight: 52,
-                borderTopWidth: i === 0 ? 0 : 1,
-                borderTopColor: c.line,
-              }}
+              accessibilityLabel={row.a11y}
+              style={{ flexDirection: 'row', alignItems: 'center', minHeight: 48, borderTopWidth: i ? 1 : 0, borderTopColor: c.line }}
             >
-              <View style={{ flex: 1 }}>
-                <Text variant="bodyStrong">{formatDay(h.start, { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
-                <Text variant="caption" tone="muted">
-                  Period {h.periodLength} {h.periodLength === 1 ? 'day' : 'days'}
-                  {sourceOf(h.start) ? ` · ${sourceOf(h.start)}` : ''}
-                </Text>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text variant="bodyStrong">{h.cycleLength === null ? 'Current' : `${h.cycleLength} days`}</Text>
-                {h.cycleLength !== null && !h.counted ? (
-                  <Text variant="caption" tone="muted">
-                    not averaged
-                  </Text>
-                ) : null}
-              </View>
+              <Text tone="muted" style={{ width: 28 }}>
+                {i + 1}
+              </Text>
+              <Text variant="bodyStrong" style={{ flex: 1 }}>
+                {row.label}
+              </Text>
+              <Text variant="caption" tone="muted">
+                estimate
+              </Text>
             </View>
           ))}
         </Card>
+
+        {calendar}
+
+        {o ? <PhaseSuggestionsCard current={phase} overview={o} /> : null}
+
+        <Card>
+          <CardHeader icon={Droplet} label="Cycle history" accent={c.cycle} soft={c.cycleSoft} />
+          {d.history.slice(0, 12).map((h, i) => {
+            const log = d.periodLogs.find((l) => l.startDay === h.start) ?? null;
+            const sp = d.sourcedPeriods.find((x) => x.start === h.start);
+            const src = sp?.sources.map((s) => (s === 'local' ? 'Bloom' : 'Health Connect')).join(' + ') ?? '';
+            const desc = `Started ${formatDay(h.start, { day: 'numeric', month: 'long', year: 'numeric' })}. Period ${h.periodLength} days. ${
+              h.cycleLength === null ? 'Current cycle' : `${h.cycleLength} day cycle${h.counted ? '' : ', left out of the average as unusual'}`
+            }${src ? `. From ${src}` : ''}.`;
+            return (
+              <View key={h.start} style={{ flexDirection: 'row', alignItems: 'center', minHeight: 56, borderTopWidth: i ? 1 : 0, borderTopColor: c.line, gap: space.sm }}>
+                <View style={{ flex: 1 }} accessible accessibilityLabel={desc}>
+                  <Text variant="bodyStrong">{formatDay(h.start, { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+                  <Text variant="caption" tone="muted">
+                    Period {h.periodLength} {h.periodLength === 1 ? 'day' : 'days'} · {h.cycleLength === null ? 'current cycle' : `${h.cycleLength}-day cycle`}
+                    {h.cycleLength !== null && !h.counted ? ' (not averaged)' : ''}
+                    {src ? ` · ${src}` : ''}
+                  </Text>
+                </View>
+                {log ? (
+                  <IconButton icon={Pencil} onPress={() => setEditing(log)} accessibilityLabel={`Edit period starting ${shortDay(h.start)}`} />
+                ) : null}
+              </View>
+            );
+          })}
+          {!demoMode ? (
+            <Button label="Add a past period" icon={Plus} variant="secondary" onPress={() => setEditing('new')} style={{ marginTop: space.sm }} />
+          ) : null}
+          <Text variant="caption" tone="muted" style={{ marginTop: space.sm }}>
+            Periods made from day logs (flow) change when you edit those days.
+          </Text>
+        </Card>
+
+        {d.partialHistory ? (
+          <Card tint={c.stepsSoft}>
+            <EmptyNote icon={Info} accent={c.steps} title="Only recent Health Connect history" body="Allow “Access past data” for Bloom in Health Connect to include older cycles." />
+          </Card>
+        ) : null}
+
+        <LinkRow icon={ChartColumn} label="Insights" hint="Averages, cycle lengths, symptom patterns" onPress={() => router.push('/cycle/insights')} accent={c.cycle} soft={c.cycleSoft} />
+        <LinkRow icon={Settings2} label="Cycle settings & reminders" hint="Usual lengths, goal, reminders, privacy" onPress={() => router.push('/cycle/settings')} accent={c.cycle} soft={c.cycleSoft} />
       </>
     );
   };
 
   return (
     <Screen refreshing={refreshing} onRefresh={onRefresh}>
-      <Text variant="display" accessibilityRole="header">
-        Cycle
-      </Text>
+      {header}
       <DemoBanner />
       {body()}
+      {sheetDay ? <CycleDayLogSheet day={sheetDay} onClose={() => setSheetDay(null)} /> : null}
+      {editing ? <PeriodEditSheet log={editing === 'new' ? null : editing} onClose={() => setEditing(null)} /> : null}
     </Screen>
-  );
-}
-
-function spanDays(start: DayKey, end: DayKey): DayKey[] {
-  const out: DayKey[] = [];
-  for (let d = start; d <= end; d = addDays(d, 1)) out.push(d);
-  return out;
-}
-
-function Metric({ label, value, unit }: { label: string; value: string; unit: string }) {
-  return (
-    <View accessible accessibilityLabel={`${label}: ${value} ${unit}`}>
-      <Text variant="label" tone="muted">
-        {label.toUpperCase()}
-      </Text>
-      <Text variant="displaySm">{value}</Text>
-      <Text variant="caption" tone="muted">
-        {unit}
-      </Text>
-    </View>
-  );
-}
-
-function Legend() {
-  const { c } = useTheme();
-  const item = (icon: React.ReactNode, label: string) => (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-      {icon}
-      <Text variant="caption">{label}</Text>
-    </View>
-  );
-  return (
-    <View
-      accessible
-      accessibilityLabel="Legend: solid filled circle with a droplet means a logged period day. Dashed circle means a predicted period day. Dotted underline means the estimated ovulation window. Outlined number is today. A small note icon means you logged symptoms, mood or a note."
-      style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.md, marginTop: space.md }}
-    >
-      {item(
-        <Svg width={18} height={18}>
-          <Circle cx={9} cy={9} r={7.5} fill={c.cycleSoft} stroke={c.cycle} strokeWidth={2} />
-        </Svg>,
-        'Logged (with droplet)'
-      )}
-      {item(
-        <Svg width={18} height={18}>
-          <Circle cx={9} cy={9} r={7.5} fill="none" stroke={c.cycle} strokeWidth={2} strokeDasharray="3 2.5" />
-        </Svg>,
-        'Predicted (estimate)'
-      )}
-      {item(
-        <Svg width={18} height={18}>
-          <Line x1={2} x2={16} y1={14} y2={14} stroke={c.spo2} strokeWidth={2.5} strokeDasharray="2 3" strokeLinecap="round" />
-        </Svg>,
-        'Ovulation window'
-      )}
-      {item(
-        <Svg width={18} height={18}>
-          <Circle cx={9} cy={9} r={8} fill="none" stroke={c.ink} strokeWidth={1.5} />
-        </Svg>,
-        'Today'
-      )}
-      {item(<NotebookPen size={14} color={c.ink} />, 'Day log')}
-    </View>
   );
 }

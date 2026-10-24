@@ -462,7 +462,7 @@ export function predictCycles(
   const daysLate = Math.max(0, diffDays(expectedStart, today));
   // Once the most likely day has passed with no period logged, project from today.
   const late = diffDays(addDays(S, L), today) > 0;
-  const ovOffset = L - ovulationDayFor(L, P); // days from ovulation to the next period
+  const ovOffset = L - ovulationDayFor(L, P) + 1; // days from ovulation to the next period start
 
   const upcoming: PredictedCycle[] = [];
   for (let k = 1; k <= count; k++) {
