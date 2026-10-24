@@ -46,6 +46,9 @@ jobs:
         run: npm ci
 
       - name: Typecheck and test
+        # Day-boundary tests assume the app's home time zone (runners default to UTC).
+        env:
+          TZ: Asia/Kolkata
         run: |
           npx tsc --noEmit
           npx jest --ci
