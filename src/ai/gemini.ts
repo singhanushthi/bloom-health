@@ -4,7 +4,7 @@
  * Verified against ai.google.dev (Oct 2026):
  *  - POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent
  *  - Streaming: …:streamGenerateContent?alt=sse  (server-sent events, one JSON chunk per `data:` line)
- *  - Header: x-goog-api-key: <key>
+ *  - Header: x-goog-api-key: <key>  (fallback: ?key=<key> after an auth error; see AuthMode)
  *  - Body: { contents: [{ role, parts: [{ text }] }], systemInstruction: { parts: [{ text }] },
  *            generationConfig: { maxOutputTokens, thinkingConfig: { thinkingLevel } } }
  *  - Gemini 3.x uses thinkingLevel ("minimal" | "low" | "medium" | "high"). 3.8 Flash rejects
@@ -55,7 +55,9 @@ export class GeminiError extends Error {
   constructor(
     public kind: ErrorKind,
     message: string,
-    public status?: number
+    public status?: number,
+    /** Key transport in use when this was thrown (lets callers remember it on quota). */
+    public authMode?: AuthMode
   ) {
     super(message);
   }
@@ -150,6 +152,13 @@ export interface FetchResponseLike {
   text(): Promise<string>;
   body?: { getReader(): { read(): Promise<{ done: boolean; value?: Uint8Array }> } } | null;
 }
+/**
+ * How the key is sent. 'header' = x-goog-api-key (documented default). 'query' = ?key=… — some
+ * AI Studio "AQ." keys have been reported to fail with the header on REST, so on an auth error
+ * we retry once with the other mode and remember whichever one worked.
+ */
+export type AuthMode = 'header' | 'query';
+
 export type FetchLike = (
   url: string,
   init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }
@@ -167,58 +176,96 @@ function defaultFetch(): { fetch: FetchLike; canStream: boolean } {
   return { fetch: globalThis.fetch as unknown as FetchLike, canStream: false };
 }
 
+function requestUrl(model: string, stream: boolean, key: string, auth: AuthMode): string {
+  const base = `${API_BASE}/${model}:${stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`;
+  if (auth === 'header') return base;
+  return `${base}${stream ? '&' : '?'}key=${encodeURIComponent(key)}`;
+}
+
+async function readStream(
+  body: NonNullable<FetchResponseLike['body']>,
+  onText?: (full: string) => void
+): Promise<string> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let full = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (value) buf += decoder.decode(value, { stream: true });
+    const { events, rest } = parseSse(done ? buf + '\n\n' : buf);
+    buf = rest;
+    for (const ev of events) {
+      const t = textOf(ev);
+      if (t) {
+        full += t;
+        onText?.(full);
+      }
+    }
+    if (done) break;
+  }
+  return full;
+}
+
+const isAbort = (e: unknown) => (e as { name?: string })?.name === 'AbortError';
+
 async function callOnce(opts: {
   fetchImpl: FetchLike;
   canStream: boolean;
   key: string;
+  auth: AuthMode;
   model: string;
   body: unknown;
   onText?: (full: string) => void;
   signal?: AbortSignal;
+  /** Internal: force a one-shot request (used after a broken stream). */
+  noStream?: boolean;
 }): Promise<string> {
-  const stream = !!opts.onText && opts.canStream;
-  const url = `${API_BASE}/${opts.model}:${stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`;
+  const stream = !!opts.onText && opts.canStream && !opts.noStream;
+  const url = requestUrl(opts.model, stream, opts.key, opts.auth);
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (opts.auth === 'header') headers['x-goog-api-key'] = opts.key;
   let res: FetchResponseLike;
   try {
     res = await opts.fetchImpl(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': opts.key },
+      headers,
       body: JSON.stringify(opts.body),
       signal: opts.signal,
     });
   } catch (e) {
-    if ((e as { name?: string })?.name === 'AbortError') throw e;
+    if (isAbort(e)) throw e;
     throw new GeminiError('network', NETWORK_MESSAGE);
   }
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     const kind = classifyError(res.status, body);
+    // Never include the URL (it may carry ?key=) or the body in the message.
     throw new GeminiError(kind, `Gemini error ${res.status}`, res.status);
   }
 
   if (stream && res.body && typeof res.body.getReader === 'function') {
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = '';
-    let full = '';
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (value) buf += decoder.decode(value, { stream: true });
-      const { events, rest } = parseSse(done ? buf + '\n\n' : buf);
-      buf = rest;
-      for (const ev of events) {
-        const t = textOf(ev);
-        if (t) {
-          full += t;
-          opts.onText?.(full);
-        }
-      }
-      if (done) break;
+    let streamed = '';
+    try {
+      return await readStream(res.body, (full) => {
+        streamed = full;
+        opts.onText?.(full);
+      });
+    } catch (e) {
+      if (isAbort(e)) throw e;
+      // The stream broke. If nothing arrived yet, fall back to one non-streaming request.
+      if (!streamed) return callOnce({ ...opts, noStream: true });
+      throw new GeminiError('network', NETWORK_MESSAGE);
     }
-    return full;
   }
 
-  const raw = await res.text();
+  let raw: string;
+  try {
+    raw = await res.text();
+  } catch (e) {
+    if (isAbort(e)) throw e;
+    throw new GeminiError('network', NETWORK_MESSAGE);
+  }
   let full = '';
   if (stream) {
     // Body wasn't streamable after all: parse the whole SSE payload at once.
@@ -246,11 +293,15 @@ export interface GenerateOptions {
   fetchImpl?: FetchLike;
   canStream?: boolean;
   signal?: AbortSignal;
+  /** Key transport that worked last time (persisted by the caller). Default 'header'. */
+  authMode?: AuthMode | null;
 }
 
 export interface GenerateResult {
   text: string;
   model: string;
+  /** Key transport that worked; the caller should remember it. */
+  authMode: AuthMode;
   /** Every model tried, in order (for tests/diagnostics; never includes the key). */
   attempts: string[];
 }
@@ -267,22 +318,26 @@ export async function generate(o: GenerateOptions): Promise<GenerateResult> {
   const attempts: string[] = [];
   let sawQuota = false;
   let lastErr: GeminiError | null = null;
+  let auth: AuthMode = o.authMode ?? 'header';
+  let triedOtherAuth = false;
 
   for (const m of order) {
     let thinking: ThinkingLevel | null = m.thinking;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      attempts.push(thinking ? m.id : `${m.id} (no thinking config)`);
+    // Up to: 1 thinking retry + 1 auth-mode retry.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      attempts.push(`${m.id}${thinking ? '' : ' (no thinking config)'}${auth === 'query' ? ' [query key]' : ''}`);
       try {
         const text = await callOnce({
           fetchImpl: d.fetch,
           canStream: d.canStream,
           key: o.key,
+          auth,
           model: m.id,
           body: buildBody({ system: o.system, turns: o.turns, thinking, maxOutputTokens: o.maxOutputTokens }),
           onText: o.onText,
           signal: o.signal,
         });
-        return { text, model: m.id, attempts };
+        return { text, model: m.id, attempts, authMode: auth };
       } catch (e) {
         if (!(e instanceof GeminiError)) throw e;
         lastErr = e;
@@ -290,7 +345,15 @@ export async function generate(o: GenerateOptions): Promise<GenerateResult> {
           thinking = null; // retry this model once without thinkingConfig
           continue;
         }
-        if (e.kind === 'auth') throw new GeminiError('auth', BAD_KEY_MESSAGE, e.status);
+        if (e.kind === 'auth') {
+          // Only auth errors (never quota) switch transport: retry once with the other mode.
+          if (!triedOtherAuth) {
+            triedOtherAuth = true;
+            auth = auth === 'header' ? 'query' : 'header';
+            continue;
+          }
+          throw new GeminiError('auth', BAD_KEY_MESSAGE, e.status);
+        }
         if (e.kind === 'network') throw e;
         if (e.kind === 'quota') sawQuota = true;
         if (e.kind === 'quota' || e.kind === 'model-gone' || e.kind === 'overloaded' || e.kind === 'thinking') break; // next model
@@ -299,7 +362,7 @@ export async function generate(o: GenerateOptions): Promise<GenerateResult> {
       }
     }
   }
-  if (sawQuota) throw new GeminiError('quota', FREE_LIMIT_MESSAGE, 429);
+  if (sawQuota) throw new GeminiError('quota', FREE_LIMIT_MESSAGE, 429, auth);
   if (lastErr?.kind === 'overloaded')
     throw new GeminiError('overloaded', 'Gemini is busy right now. Please try again in a minute.', lastErr.status);
   throw new GeminiError(lastErr?.kind ?? 'bad-request', 'Gemini couldn’t answer that. Please try again.', lastErr?.status);
@@ -311,8 +374,13 @@ export async function generate(o: GenerateOptions): Promise<GenerateResult> {
  */
 export async function testKey(
   key: string,
-  opts: { fetchImpl?: FetchLike; lastWorkingModel?: string | null; models?: ModelSpec[] } = {}
-): Promise<{ result: 'ok' | 'bad-key' | 'network' | 'error'; model?: string }> {
+  opts: {
+    fetchImpl?: FetchLike;
+    lastWorkingModel?: string | null;
+    models?: ModelSpec[];
+    authMode?: AuthMode | null;
+  } = {}
+): Promise<{ result: 'ok' | 'bad-key' | 'network' | 'error'; model?: string; authMode?: AuthMode }> {
   try {
     const r = await generate({
       key,
@@ -322,12 +390,13 @@ export async function testKey(
       fetchImpl: opts.fetchImpl,
       lastWorkingModel: opts.lastWorkingModel,
       models: opts.models,
+      authMode: opts.authMode,
     });
-    return { result: 'ok', model: r.model };
+    return { result: 'ok', model: r.model, authMode: r.authMode };
   } catch (e) {
     if (e instanceof GeminiError) {
       if (e.kind === 'auth') return { result: 'bad-key' };
-      if (e.kind === 'quota') return { result: 'ok' };
+      if (e.kind === 'quota') return { result: 'ok', authMode: e.authMode };
       if (e.kind === 'network') return { result: 'network' };
     }
     return { result: 'error' };

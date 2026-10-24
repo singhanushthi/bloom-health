@@ -175,10 +175,61 @@ describe('model fallback', () => {
     expect(calls[1].body.generationConfig).toEqual({});
   });
 
-  it('stops immediately on a bad key (no fallback)', async () => {
+  it('on a bad key retries once with ?key= then stops (no model fallback)', async () => {
     const { f, calls } = fakeFetch(() => badKey);
     await expect(generate({ ...base, fetchImpl: f })).rejects.toMatchObject({ kind: 'auth', message: BAD_KEY_MESSAGE });
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(2);
+    expect(calls[0].headers['x-goog-api-key']).toBe(AQ_KEY);
+    expect(calls[0].url).not.toContain('key=');
+    expect(calls[1].headers['x-goog-api-key']).toBeUndefined();
+    expect(calls[1].url).toContain(`?key=${encodeURIComponent(AQ_KEY)}`);
+    expect(calls[1].model).toBe(calls[0].model);
+  });
+
+  it('switches to the query-param key when the header is rejected, and reports the mode', async () => {
+    const { f, calls } = fakeFetch((_m, _b, url) => (url.includes('key=') ? okReply('ok') : { status: 401, body: { error: { status: 'UNAUTHENTICATED', message: 'API key not valid' } } }));
+    const r = await generate({ ...base, fetchImpl: f });
+    expect(r.authMode).toBe('query');
+    expect(calls).toHaveLength(2);
+    // Remembered mode is used first next time.
+    const again = fakeFetch((_m, _b, url) => (url.includes('key=') ? okReply('ok') : badKey));
+    expect((await generate({ ...base, fetchImpl: again.f, authMode: 'query' })).authMode).toBe('query');
+    expect(again.calls).toHaveLength(1);
+  });
+
+  it('never switches auth mode on quota errors', async () => {
+    const { f, calls } = fakeFetch(() => quota);
+    await expect(generate({ ...base, fetchImpl: f })).rejects.toMatchObject({ kind: 'quota', authMode: 'header' });
+    expect(calls.every((c) => !c.url.includes('key='))).toBe(true);
+  });
+
+  it('puts ?key= after alt=sse with & when streaming', async () => {
+    const { f, calls } = fakeFetch((_m, _b, url) => (url.includes('key=') ? { status: 200, body: 'data: {"candidates":[{"content":{"parts":[{"text":"hi"}]}}]}\n\n' } : badKey));
+    const r = await generate({ ...base, fetchImpl: f, canStream: true, onText: () => {} });
+    expect(r.text).toBe('hi');
+    expect(calls[1].url).toMatch(/streamGenerateContent\?alt=sse&key=/);
+  });
+
+  it('falls back to one non-streaming request when the stream breaks before any text', async () => {
+    const calls: string[] = [];
+    const f: FetchLike = async (url) => {
+      calls.push(url);
+      if (url.includes('streamGenerateContent')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => '',
+          body: { getReader: () => ({ read: async () => { throw new TypeError('stream reset'); } }) },
+        };
+      }
+      return { ok: true, status: 200, text: async () => JSON.stringify({ candidates: [{ content: { parts: [{ text: 'whole' }] } }] }) };
+    };
+    const seen: string[] = [];
+    const r = await generate({ ...base, fetchImpl: f, canStream: true, onText: (t) => seen.push(t) });
+    expect(r.text).toBe('whole');
+    expect(seen).toEqual(['whole']);
+    expect(calls[0]).toContain('streamGenerateContent');
+    expect(calls[1]).toContain(':generateContent');
   });
 
   it('skips retired models (404)', async () => {

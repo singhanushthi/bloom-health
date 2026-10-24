@@ -27,23 +27,27 @@ jobs:
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
 
       # React Native 0.88 / Expo SDK 58 build with JDK 17 (React Native's recommended JDK).
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
+      # 'basic' = open-source actions/cache provider; the v6 default ('enhanced') is a
+      # proprietary service that is only a free preview for private repositories.
       - name: Set up Gradle (with caching)
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
 
       - name: Install dependencies
         run: npm ci
@@ -70,14 +74,16 @@ jobs:
         run: |
           if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
             KEYSTORE="$RUNNER_TEMP/bloom-release.jks"
-            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
-            mkdir -p "$HOME/.gradle"
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode --ignore-garbage > "$KEYSTORE"
+            # Gradle reads ORG_GRADLE_PROJECT_<name> env vars as project properties. This keeps the
+            # passwords out of ~/.gradle (which setup-gradle caches) and avoids .properties escaping
+            # problems with characters like \ # = : in passwords.
             {
-              echo "BLOOM_UPLOAD_STORE_FILE=$KEYSTORE"
-              echo "BLOOM_UPLOAD_STORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD"
-              echo "BLOOM_UPLOAD_KEY_ALIAS=$ANDROID_KEY_ALIAS"
-              echo "BLOOM_UPLOAD_KEY_PASSWORD=$ANDROID_KEY_PASSWORD"
-            } >> "$HOME/.gradle/gradle.properties"
+              echo "ORG_GRADLE_PROJECT_BLOOM_UPLOAD_STORE_FILE=$KEYSTORE"
+              echo "ORG_GRADLE_PROJECT_BLOOM_UPLOAD_STORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD"
+              echo "ORG_GRADLE_PROJECT_BLOOM_UPLOAD_KEY_ALIAS=$ANDROID_KEY_ALIAS"
+              echo "ORG_GRADLE_PROJECT_BLOOM_UPLOAD_KEY_PASSWORD=$ANDROID_KEY_PASSWORD"
+            } >> "$GITHUB_ENV"
             echo "mode=release-key" >> "$GITHUB_OUTPUT"
             echo "Signing with the release keystore from repository secrets."
           else
@@ -110,7 +116,7 @@ jobs:
           echo "path=dist-apk/$NAME" >> "$GITHUB_OUTPUT"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bloom-apk
           path: ${{ steps.apk.outputs.path }}
@@ -119,6 +125,7 @@ jobs:
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           TAG: v${{ steps.version.outputs.version }}
           APK: ${{ steps.apk.outputs.path }}
           SIGNING: ${{ steps.signing.outputs.mode }}
@@ -131,9 +138,12 @@ jobs:
 
           ⚠️ Signed with the public debug key (signing secrets not set). If Android refuses to update, uninstall the old version first — that deletes Bloom's data, so export it in Settings → Your data before you do."
           fi
+          # Re-runs / pushes without a version bump update the same release: the APK asset is
+          # replaced (--clobber). The tag itself keeps pointing at the first commit for this
+          # version (GitHub doesn't move existing tags); the notes name the commit actually built.
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" --clobber
-            gh release edit "$TAG" --notes "$NOTES" --target "$GITHUB_SHA"
+            gh release edit "$TAG" --notes "$NOTES"
           else
             gh release create "$TAG" "$APK" --title "Bloom ${TAG}" --notes "$NOTES" --target "$GITHUB_SHA"
           fi

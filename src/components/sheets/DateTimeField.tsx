@@ -6,6 +6,7 @@
 import { Calendar, Clock } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Platform, Pressable, View } from 'react-native';
+import { toDayKey } from '../../health/dates';
 import { radius, space, touch } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { Text } from '../ui';
@@ -102,4 +103,21 @@ export function withTime(day: Date, time: Date): Date {
   const d = new Date(day);
   d.setHours(time.getHours(), time.getMinutes(), 0, 0);
   return d;
+}
+
+/**
+ * Bedtime/wake → instants. If both dates are the same calendar day but the wake clock time is
+ * not after the bedtime (e.g. 23:30 → 07:00 with both dates left on today), the night crossed
+ * midnight: bedtime is taken as the evening before. Otherwise the dates are used as picked and
+ * validateSleep reports a wake time before bedtime inline.
+ */
+export function sleepRange(bedDay: Date, bedTime: Date, wakeDay: Date, wakeTime: Date): { start: Date; end: Date } {
+  let start = withTime(bedDay, bedTime);
+  const end = withTime(wakeDay, wakeTime);
+  if (toDayKey(bedDay) === toDayKey(wakeDay) && end.getTime() <= start.getTime()) {
+    const prev = new Date(bedDay);
+    prev.setDate(prev.getDate() - 1);
+    start = withTime(prev, bedTime);
+  }
+  return { start, end };
 }

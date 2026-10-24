@@ -93,7 +93,7 @@ Welcome → **What to track** (cycle / steps / sleep / heart) → *optional* **"
 2. Tap **Create API key** and copy it. New keys start with **`AQ.`**; older keys start with `AIza`. Both work.
 3. In Bloom open **Settings → AI Coach**, paste the key into **Gemini API key** and tap **Use my key**.
    - Bloom sends one tiny test request. You'll see **"AI coach turned on"** or **"Google didn't accept that key"**.
-   - The key is stored encrypted on the phone (`expo-secure-store`). It is only ever sent to `generativelanguage.googleapis.com`, in the `x-goog-api-key` header. **Remove key** deletes it.
+   - The key is stored encrypted on the phone (`expo-secure-store`). It is only ever sent to `generativelanguage.googleapis.com`, in the `x-goog-api-key` header. If Google rejects the key in the header with an auth error (some `AQ.` keys reportedly need this), Bloom retries once with the key as a `?key=` URL parameter and remembers which way worked; quota errors never trigger this. The key is never logged. **Remove key** deletes it.
 4. On Today, tap **Ask Bloom**. You can tap a suggested question ("Explain my cycle phase", "How was my sleep this week?", "Am I hitting my step goal?"), use **Morning brief** or **Weekly review**, or type your own question.
 
 **What gets sent:** your question, plus a compact summary of the last 30 days. The summary includes cycle day and phase, averages, steps and sleep for the last 7 days, symptom and mood counts, and your latest readings. **Day-log notes are never sent.** Bloom builds the summary once and rebuilds it only when your data changes. In demo mode the coach sees the sample data.
@@ -118,7 +118,7 @@ It moves to the next model when one is out of quota, retired or overloaded. When
 
 **Technical details:**
 - Calls go to the REST endpoint `v1beta/models/{model}:streamGenerateContent?alt=sse`.
-- Replies stream token by token through `expo/fetch`, because React Native's built-in `fetch` can't stream response bodies. If streaming isn't available, Bloom calls `:generateContent` and shows the whole answer at once.
+- Replies stream token by token through `expo/fetch`, because React Native's built-in `fetch` can't stream response bodies. If streaming isn't available, or the stream breaks before any text arrives, Bloom calls `:generateContent` and shows the whole answer at once.
 - Bloom requests the fastest thinking level each model supports: `minimal`, or `low` for 3.8 Flash. If a model rejects that setting, Bloom retries once without it.
 - Bloom never calls the list-models endpoint.
 
@@ -149,13 +149,13 @@ gh secret set ANDROID_KEY_PASSWORD               # same password
 
 [`.github/workflows/android-apk.yml`](.github/workflows/android-apk.yml) runs on a push to `main` or when started manually from the Actions tab (`workflow_dispatch`):
 
-1. Sets up `ubuntu-latest`, **Node 22** and **JDK 17** (Temurin), with Gradle caching through `gradle/actions/setup-gradle`. JDK 17 is the version React Native recommends, and RN 0.88's Gradle plugin targets the JDK 17 toolchain.
+1. Sets up `ubuntu-latest`, **Node 22** and **JDK 17** (Temurin), with Gradle caching through `gradle/actions/setup-gradle` (open-source `basic` cache provider). JDK 17 is the version React Native recommends, and RN 0.88's Gradle plugin targets the JDK 17 toolchain.
 2. Runs `npm ci`, then `tsc` and `jest`.
-3. Runs `npx expo prebuild --platform android --no-install`. The local config plugin [`plugins/withReleaseSigning.js`](plugins/withReleaseSigning.js) adds a release signing config that is used only when the `BLOOM_UPLOAD_*` Gradle properties exist. The workflow writes those properties to `~/.gradle/gradle.properties` from the secrets.
+3. Runs `npx expo prebuild --platform android --no-install`. The local config plugin [`plugins/withReleaseSigning.js`](plugins/withReleaseSigning.js) adds a release signing config that is used only when the `BLOOM_UPLOAD_*` Gradle properties exist. The workflow passes them from the secrets as `ORG_GRADLE_PROJECT_BLOOM_UPLOAD_*` environment variables, so no password is written to `~/.gradle`.
 4. Runs `./gradlew assembleRelease` and renames the output to `bloom-<version>.apk`. The version comes from `app.json` → `expo.version`.
 5. Uploads the artifact **bloom-apk** and creates or updates the GitHub Release **`v<version>`** with the APK attached (`permissions: contents: write`).
 
-To publish a new version, bump `expo.version` (and `android.versionCode`) in `app.json`. Pushing without a bump replaces the APK on the existing release.
+To publish a new version, bump `expo.version` (and `android.versionCode`) in `app.json`. Pushing (or re-running) without a bump replaces the APK on the existing release; the tag stays on the first commit of that version and the release notes name the commit actually built.
 
 ---
 

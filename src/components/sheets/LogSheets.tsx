@@ -30,7 +30,7 @@ import { useAppState } from '../../state/AppState';
 import { radius, space, touch } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { Button, Text } from '../ui';
-import { DateTimeField, withTime } from './DateTimeField';
+import { DateTimeField, sleepRange, withTime } from './DateTimeField';
 import { ChipRow, Field, Input, Sheet, ToggleChip } from './Sheet';
 
 export type SheetKind = 'menu' | 'period' | 'day' | 'sleep' | 'reading' | 'steps';
@@ -339,7 +339,7 @@ function SleepSheet({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      await sleepLogs.add({ start: withTime(bedDay, bedTime), end: withTime(wakeDay, wakeTime), quality });
+      await sleepLogs.add({ ...sleepRange(bedDay, bedTime, wakeDay, wakeTime), quality });
       bump();
       onClose();
     } catch (e) {

@@ -61,6 +61,47 @@ export async function requestSensorPermission(): Promise<SensorPermission> {
 const FLUSH_MS = 5000;
 
 /**
+ * Pure accumulator: turns the cumulative "steps since subscribe" values from watchStepCount into
+ * per-LOCAL-day deltas. Exported for tests.
+ *  - Each subscription restarts at 0 (expo-sensors resets its baseline on subscribe), so
+ *    `resetBaseline()` must be called on every (re)subscribe — otherwise the first reading after
+ *    a resume would be treated as a decrease and lost, or the old total re-added.
+ *  - Pending steps are kept per day, so a failed write retried after midnight still lands on the
+ *    day the steps were taken.
+ */
+export function createStepAccumulator(dayOf: () => string = () => todayKey()) {
+  let lastTotal = 0;
+  const pending = new Map<string, number>();
+  return {
+    resetBaseline() {
+      lastTotal = 0;
+    },
+    /** Feed a cumulative reading; returns the delta that was added (0 if none). */
+    onReading(total: number): number {
+      const delta = total - lastTotal;
+      lastTotal = total;
+      if (!(delta > 0)) return 0;
+      const day = dayOf();
+      pending.set(day, (pending.get(day) ?? 0) + delta);
+      return delta;
+    },
+    /** Take everything pending (clears it). */
+    take(): [string, number][] {
+      const out = Array.from(pending.entries()).filter(([, n]) => n > 0);
+      pending.clear();
+      return out;
+    },
+    /** Put back steps whose write failed. */
+    restore(day: string, n: number) {
+      pending.set(day, (pending.get(day) ?? 0) + n);
+    },
+    hasPending() {
+      return pending.size > 0;
+    },
+  };
+}
+
+/**
  * Start counting. Returns a stop function. `onFlush` fires after steps are saved so the
  * UI can refresh. Safe to call when the sensor is missing (returns a no-op).
  */
@@ -69,44 +110,36 @@ export function startForegroundCounting(onFlush?: (savedDelta: number) => void):
   if (!p || Platform.OS !== 'android') return () => {};
 
   let sub: { remove: () => void } | null = null;
-  let lastTotal = 0; // steps since current subscription, as last reported
-  let pending = 0; // not yet written
-  let pendingDay = todayKey();
   let timer: ReturnType<typeof setInterval> | null = null;
+  let stopped = false;
+  const acc = createStepAccumulator();
 
   const flush = async () => {
-    if (pending <= 0) return;
-    const delta = pending;
-    const day = pendingDay;
-    pending = 0;
-    try {
-      await stepDays.addSensorSteps(day, delta);
-      onFlush?.(delta);
-    } catch {
-      pending += delta; // retry on next flush
+    if (!acc.hasPending()) return;
+    let saved = 0;
+    for (const [day, n] of acc.take()) {
+      try {
+        await stepDays.addSensorSteps(day, n);
+        saved += n;
+      } catch {
+        acc.restore(day, n); // retry on next flush, still on its own day
+      }
     }
+    if (saved > 0) onFlush?.(saved);
   };
 
   const subscribe = () => {
-    if (sub) return;
-    lastTotal = 0;
+    if (sub || stopped) return;
+    acc.resetBaseline();
     try {
       sub = p.watchStepCount(({ steps }) => {
-        const delta = steps - lastTotal;
-        lastTotal = steps;
-        if (delta <= 0) return;
-        const day = todayKey();
-        if (day !== pendingDay) {
-          // Midnight passed: write the old day's remainder first.
-          void flush();
-          pendingDay = day;
-        }
-        pending += delta;
+        acc.onReading(steps);
       });
     } catch {
       sub = null;
+      return; // no timer without a subscription
     }
-    timer = setInterval(() => void flush(), FLUSH_MS);
+    if (!timer) timer = setInterval(() => void flush(), FLUSH_MS);
   };
 
   const unsubscribe = () => {
@@ -119,9 +152,11 @@ export function startForegroundCounting(onFlush?: (savedDelta: number) => void):
 
   const onAppState = (s: AppStateStatus) => (s === 'active' ? subscribe() : unsubscribe());
   const appSub = AppState.addEventListener('change', onAppState);
-  if (AppState.currentState === 'active' || AppState.currentState == null) subscribe();
+  const cur = AppState.currentState as AppStateStatus | null;
+  if (cur === 'active' || cur === 'unknown' || cur == null) subscribe();
 
   return () => {
+    stopped = true;
     appSub.remove();
     unsubscribe();
   };

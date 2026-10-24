@@ -5,7 +5,8 @@
  *  - "AQ."   — AI Studio auth keys (the default for keys created since May 2026)
  *  - "AIza"  — older standard keys (still work when restricted)
  * Only surrounding whitespace is removed; the key itself is never altered, logged or
- * sent anywhere except generativelanguage.googleapis.com (in the x-goog-api-key header).
+ * sent anywhere except generativelanguage.googleapis.com (x-goog-api-key header, or ?key= if the
+ * header is rejected — see AuthMode in gemini.ts).
  */
 
 export const KEY_PREFIXES = ['AQ.', 'AIza'] as const;

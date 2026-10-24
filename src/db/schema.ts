@@ -71,7 +71,15 @@ export async function db(): Promise<SqlDriver> {
   const d = await getDriver();
   if (!ready || readyFor !== d) {
     readyFor = d;
-    ready = migrate(d).then(() => d);
+    ready = migrate(d).then(
+      () => d,
+      (e) => {
+        // Don't cache a failed migration forever — retry on the next call.
+        ready = null;
+        readyFor = null;
+        throw e;
+      }
+    );
   }
   return ready;
 }
