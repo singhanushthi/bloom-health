@@ -106,12 +106,16 @@ describe('searchFoods', () => {
     const aloo = searchFoods('aloo', { limit: 50 }).map((f) => f.id);
     expect(aloo.indexOf('aloo-gobi')).toBeLessThan(aloo.indexOf('jeera-aloo'));
 
-    // "dosa": word-start "Masala dosa" before substring-only matches
-    const dosa = searchFoods('osa', { limit: 50 }).map((f) => f.id);
-    expect(dosa).toContain('masala-dosa'); // substring match works
-    const d2 = searchFoods('dosa', { limit: 50 }).map((f) => f.id);
-    expect(d2[0]).toBe('plain-dosa'); // alias exact "dosa"
-    expect(d2.indexOf('masala-dosa')).toBeLessThan(d2.indexOf('ragi-dosa') + 100);
+    // "chi": prefix ("Chicken curry") < word-start ("Butter chicken") < substring ("Litchi")
+    const chi = searchFoods('chi', { limit: 400 }).map((f) => f.id);
+    const [pre, word, sub] = ['chicken-curry', 'butter-chicken', 'litchi'].map((id) => chi.indexOf(id));
+    expect(pre).toBeGreaterThanOrEqual(0);
+    expect(pre).toBeLessThan(word);
+    expect(word).toBeLessThan(sub);
+
+    // substring-only matches are still found; exact alias wins
+    expect(searchFoods('osa', { limit: 50 }).map((f) => f.id)).toContain('masala-dosa');
+    expect(searchFoods('dosa')[0].id).toBe('plain-dosa');
   });
 
   it('prefers exact > prefix > word-start > substring on a controlled query', () => {
