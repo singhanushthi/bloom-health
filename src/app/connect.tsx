@@ -6,7 +6,9 @@
 import { router } from 'expo-router';
 import {
   ArrowLeft,
+  Bluetooth,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   CircleCheck,
   CircleDashed,
@@ -92,6 +94,8 @@ export default function ConnectAppsScreen() {
       </Text>
 
       <HealthConnectStatusCard />
+
+      <DirectWatchCard />
 
       <Text variant="title" accessibilityRole="header" style={{ marginTop: space.xs }}>
         Apps
@@ -220,6 +224,47 @@ function HealthConnectStatusCard() {
   );
 }
 
+/* --------------------------- Direct watch card --------------------------- */
+
+function DirectWatchCard() {
+  const { c } = useTheme();
+  return (
+    <Pressable
+      onPress={() => router.push('/watch')}
+      accessibilityRole="button"
+      accessibilityLabel="Connect a watch directly (beta). Heart rate over Bluetooth, no companion app, if your watch supports it."
+      accessibilityHint="Opens the direct Bluetooth watch screen"
+      android_ripple={{ color: c.line }}
+      style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1, borderRadius: radius.card })}
+    >
+      <Card>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+          <View
+            importantForAccessibility="no-hide-descendants"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: c.sleepSoft,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Bluetooth size={22} color={c.sleep} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text variant="heading">Connect a watch directly (beta)</Text>
+            <Text variant="caption" tone="muted">
+              Heart rate over Bluetooth, no companion app — if your watch supports it.
+            </Text>
+          </View>
+          <ChevronRight size={22} color={c.ink} />
+        </View>
+      </Card>
+    </Pressable>
+  );
+}
+
 /* -------------------------------- App card ------------------------------- */
 
 function Monogram({ text }: { text: string }) {
@@ -338,6 +383,26 @@ function AppCard({ app: a, info }: { app: ConnectApp; info?: AppStatusInfo }) {
             <Text variant="bodyStrong">How to connect</Text>
             {open ? <ChevronUp size={22} color={c.ink} /> : <ChevronDown size={22} color={c.ink} />}
           </Pressable>
+          {open && a.directOption ? (
+            <View style={{ gap: space.xs, marginTop: space.xxs }}>
+              <Text variant="label" tone="muted" style={{ textTransform: 'uppercase' }}>
+                Option 1
+              </Text>
+              <Text variant="bodyStrong">{a.directOption.title}</Text>
+              <Text>{a.directOption.body}</Text>
+              <Button
+                variant="secondary"
+                icon={Bluetooth}
+                label="Connect watch directly (beta)"
+                accessibilityHint="Opens the direct Bluetooth watch screen"
+                onPress={() => router.push(a.directOption!.route)}
+              />
+              <Text variant="label" tone="muted" style={{ textTransform: 'uppercase', marginTop: space.sm }}>
+                Option 2
+              </Text>
+              <Text variant="bodyStrong">{a.note ? `${a.note} (full data)` : 'Through Health Connect (full data)'}</Text>
+            </View>
+          ) : null}
           {open ? (
             <View style={{ gap: space.xs, marginTop: space.xxs }}>
               {a.steps.map((s, i) => (

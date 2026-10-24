@@ -55,6 +55,11 @@ export interface ConnectApp {
   steps: string[];
   /** Search term for the Play Store; null when there's nothing to install on Android. */
   storeQuery: string | null;
+  /**
+   * Optional "connect the watch straight to Bloom over Bluetooth" route, shown as Option 1
+   * in "How to connect" (the `steps` above then become Option 2).
+   */
+  directOption?: { title: string; body: string; route: '/watch' };
 }
 
 export const CONNECT_APPS: ConnectApp[] = [
@@ -74,6 +79,11 @@ export const CONNECT_APPS: ConnectApp[] = [
       'Come back to Bloom — new data shows up after the next sync.',
     ],
     storeQuery: 'NoiseFit',
+    directOption: {
+      title: 'Connect the watch directly (if supported)',
+      body: 'Heart rate only, no NoiseFit needed — works if your watch shares heart rate over standard Bluetooth. Many Noise models don’t.',
+      route: '/watch',
+    },
   },
   {
     id: 'flo',

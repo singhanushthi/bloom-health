@@ -147,10 +147,10 @@ export function isPlausibleCycle(len: number): boolean {
   return len >= MIN_CYCLE_DAYS && len <= MAX_CYCLE_DAYS;
 }
 
-/** Average of the last up-to-6 plausible cycles, or 28 when fewer than 2 are known. */
-export function averageCycleLength(lengths: number[]): { value: number; used: number } {
+/** Average of the last up-to-6 plausible cycles, or `fallback` (28) when fewer than 2 are known. */
+export function averageCycleLength(lengths: number[], fallback = DEFAULT_CYCLE_DAYS): { value: number; used: number } {
   const recent = lengths.filter(isPlausibleCycle).slice(-MAX_CYCLES_AVERAGED);
-  if (recent.length < MIN_CYCLES_FOR_AVERAGE) return { value: DEFAULT_CYCLE_DAYS, used: 0 };
+  if (recent.length < MIN_CYCLES_FOR_AVERAGE) return { value: fallback, used: 0 };
   const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
   return { value: Math.round(avg), used: recent.length };
 }
@@ -173,23 +173,32 @@ export interface CycleInput {
   /** Bleeding days from MenstruationPeriod intervals and MenstruationFlow records. */
   bleedingDays: Iterable<DayKey>;
   today: DayKey;
+  /**
+   * The user's typical lengths from cycle settings. Used instead of 28 / 5 until enough
+   * history is logged (cycle: fewer than 2 cycles; period: only one, possibly ongoing, period).
+   */
+  defaults?: { cycleLength?: number; periodLength?: number };
 }
 
-export function computeCycleStatus({ bleedingDays, today }: CycleInput): CycleStatus {
+export function computeCycleStatus({ bleedingDays, today, defaults }: CycleInput): CycleStatus {
   // Ignore anything logged in the future.
   const days = Array.from(bleedingDays).filter((d) => d <= today);
   const periods = groupBleedingDays(days);
   const starts = periods.map((p) => p.start);
   const lengths = cycleLengthsFromStarts(starts);
-  const { value: avgCycle, used } = averageCycleLength(lengths);
+  const { value: avgCycle, used } = averageCycleLength(lengths, defaults?.cycleLength ?? DEFAULT_CYCLE_DAYS);
 
   // Exclude the ongoing period (which may still be growing) from the period-length average
   // unless it's the only one we have.
   const finished = periods.length > 1 ? periods.slice(0, -1) : periods;
   const recentPeriods = finished.slice(-MAX_CYCLES_AVERAGED);
-  const avgPeriod = recentPeriods.length
-    ? Math.round(recentPeriods.reduce((a, p) => a + p.lengthDays, 0) / recentPeriods.length)
-    : DEFAULT_PERIOD_DAYS;
+  const onlyPeriodMayBeOngoing =
+    periods.length === 1 && diffDays(periods[0].end, today) <= 1 && defaults?.periodLength !== undefined;
+  const avgPeriod = onlyPeriodMayBeOngoing
+    ? Math.max(defaults!.periodLength!, periods[0].lengthDays)
+    : recentPeriods.length
+      ? Math.round(recentPeriods.reduce((a, p) => a + p.lengthDays, 0) / recentPeriods.length)
+      : (defaults?.periodLength ?? DEFAULT_PERIOD_DAYS);
 
   const ovulationDay = Math.max(avgPeriod + 1, avgCycle - LUTEAL_DAYS);
   const ovulationWindow = {
@@ -274,5 +283,255 @@ export function computeCycleStatus({ bleedingDays, today }: CycleInput): CycleSt
     daysLate,
     predictedDays,
     predictedFertileDays: Array.from(new Set(predictedFertileDays)).sort(),
+  };
+}
+
+/* ------------------------- Predictions (v2, Flo-free) ------------------------ */
+/*
+ * Built on top of CycleStatus. Pure and tested (__tests__/cyclePredictions.test.ts).
+ *  - Next 3 periods. Regular: a single start day each. Irregular (setting, or detected when
+ *    the last cycles differ by 8+ days): a start *range* from the shortest to the longest of
+ *    the last 6 cycles.
+ *  - Ovulation = cycle length − 14 (clamped inside the cycle); fertile window = ovulation −5…+1;
+ *    PMS window = the 5 days before the period (−5…−1).
+ *  - Confidence: Low (<3 cycles), Medium (3–5, or 6+ that vary a lot), High (6+ cycles, SD ≤ 3).
+ *  - Late: more than LATE_BANNER_DAYS after the expected start (latest start when irregular)
+ *    with no period logged.
+ */
+
+export type CycleConfidence = 'low' | 'medium' | 'high';
+export const CONFIDENCE_LABEL: Record<CycleConfidence, string> = {
+  low: 'Low confidence',
+  medium: 'Medium confidence',
+  high: 'High confidence',
+};
+
+/** Phase with the late-luteal (PMS) days split out — used for suggestions and insights. */
+export type PhaseDetail = CyclePhase | 'pms';
+export const PHASE_DETAIL_LABEL: Record<PhaseDetail, string> = {
+  menstrual: 'Period',
+  follicular: 'Follicular',
+  ovulation: 'Ovulation window',
+  luteal: 'Luteal',
+  pms: 'Before your period',
+};
+
+export const PREDICTED_CYCLES = 3;
+export const FERTILE_BEFORE_OVULATION = 5;
+export const FERTILE_AFTER_OVULATION = 1;
+export const PMS_DAYS = 5;
+export const LATE_BANNER_DAYS = 3;
+export const IRREGULAR_SPREAD_DAYS = 8;
+export const HIGH_CONFIDENCE_MAX_SD = 3;
+
+export interface PredictedCycle {
+  /** 1 = the next period. */
+  index: number;
+  /** Most likely start (average cycle). */
+  start: DayKey;
+  /** Inclusive last predicted bleeding day. */
+  end: DayKey;
+  /** Start range; equals `start` when cycles are regular. */
+  earliest: DayKey;
+  latest: DayKey;
+  /** Estimated ovulation before this period (and its range when irregular). */
+  ovulation: DayKey;
+  ovulationEarliest: DayKey;
+  ovulationLatest: DayKey;
+  fertileStart: DayKey;
+  fertileEnd: DayKey;
+  pmsStart: DayKey;
+  pmsEnd: DayKey;
+}
+
+export interface CycleSettingsInput {
+  cycleLength: number;
+  periodLength: number;
+  irregular: boolean;
+}
+
+export interface CyclePredictions {
+  cycleLength: number;
+  periodLength: number;
+  /** Plausible cycle lengths used (newest last, up to 6). */
+  recentLengths: number[];
+  cyclesUsed: number;
+  sd: number | null;
+  confidence: CycleConfidence;
+  irregular: boolean;
+  irregularSource: 'setting' | 'detected' | null;
+  /** Shortest–longest of the recent cycles (or ±3 days of the typical length when unknown). */
+  range: { min: number; max: number } | null;
+  upcoming: PredictedCycle[];
+  /** Expected start the late check is measured from. */
+  expectedStart: DayKey | null;
+  daysLate: number;
+  showLateBanner: boolean;
+  phaseDetail: PhaseDetail | null;
+  calendar: {
+    predicted: DayKey[];
+    /** Days inside an irregular start range that aren't the most likely period days. */
+    possible: DayKey[];
+    fertile: DayKey[];
+    ovulation: DayKey[];
+    pms: DayKey[];
+  };
+}
+
+export function ovulationDayFor(cycleLength: number, periodLength: number): number {
+  const lo = Math.min(periodLength + 1, cycleLength - 1);
+  return Math.min(cycleLength - 1, Math.max(lo, cycleLength - LUTEAL_DAYS));
+}
+
+/** Late-luteal (PMS) days are the last PMS_DAYS days of a cycle. */
+export function phaseDetailForDay(cycleDay: number, cycleLength: number, periodLength: number): PhaseDetail {
+  const base = phaseForDay(cycleDay, cycleLength, periodLength);
+  if (base === 'luteal' && cycleLength - cycleDay + 1 <= PMS_DAYS) return 'pms';
+  return base;
+}
+
+export function standardDeviation(xs: number[]): number | null {
+  if (xs.length < 2) return null;
+  const m = xs.reduce((a, b) => a + b, 0) / xs.length;
+  return Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / xs.length);
+}
+
+export function confidenceFor(cyclesUsed: number, sd: number | null): CycleConfidence {
+  if (cyclesUsed < 3) return 'low';
+  if (cyclesUsed < MAX_CYCLES_AVERAGED) return 'medium';
+  return sd !== null && sd <= HIGH_CONFIDENCE_MAX_SD ? 'high' : 'medium';
+}
+
+function daysBetween(a: DayKey, b: DayKey): DayKey[] {
+  const out: DayKey[] = [];
+  for (let d = a; d <= b; d = addDays(d, 1)) out.push(d);
+  return out;
+}
+
+export function predictCycles(
+  status: CycleStatus,
+  today: DayKey,
+  settings: CycleSettingsInput,
+  count = PREDICTED_CYCLES
+): CyclePredictions {
+  // history is newest first; the current cycle has cycleLength null.
+  const recentLengths = status.history
+    .filter((h) => h.counted && h.cycleLength !== null)
+    .slice(0, MAX_CYCLES_AVERAGED)
+    .map((h) => h.cycleLength as number)
+    .reverse();
+  const cyclesUsed = recentLengths.length;
+  const L = cyclesUsed >= MIN_CYCLES_FOR_AVERAGE ? status.averageCycleLength : settings.cycleLength;
+  const P = status.hasData ? status.averagePeriodLength : settings.periodLength;
+  const sd = standardDeviation(recentLengths);
+  const confidence = confidenceFor(cyclesUsed, sd);
+  const spread = cyclesUsed >= 2 ? Math.max(...recentLengths) - Math.min(...recentLengths) : 0;
+  const detected = cyclesUsed >= 3 && spread >= IRREGULAR_SPREAD_DAYS;
+  const irregular = settings.irregular || detected;
+  const irregularSource = settings.irregular ? 'setting' : detected ? 'detected' : null;
+  const range = irregular
+    ? cyclesUsed >= 2
+      ? { min: Math.min(...recentLengths), max: Math.max(...recentLengths) }
+      : { min: L - 3, max: L + 3 }
+    : null;
+
+  const empty: CyclePredictions = {
+    cycleLength: L,
+    periodLength: P,
+    recentLengths,
+    cyclesUsed,
+    sd,
+    confidence,
+    irregular,
+    irregularSource,
+    range,
+    upcoming: [],
+    expectedStart: null,
+    daysLate: 0,
+    showLateBanner: false,
+    phaseDetail: null,
+    calendar: { predicted: [], possible: [], fertile: [], ovulation: [], pms: [] },
+  };
+  if (!status.hasData || !status.lastPeriodStart) return empty;
+
+  const S = status.lastPeriodStart;
+  const lastEnd = status.periods[status.periods.length - 1]?.end ?? S;
+  const minLen = range?.min ?? L;
+  const maxLen = range?.max ?? L;
+  const expectedStart = addDays(S, irregular ? maxLen : L);
+  const daysLate = Math.max(0, diffDays(expectedStart, today));
+  // Once the most likely day has passed with no period logged, project from today.
+  const late = diffDays(addDays(S, L), today) > 0;
+  const ovOffset = L - ovulationDayFor(L, P); // days from ovulation to the next period
+
+  const upcoming: PredictedCycle[] = [];
+  for (let k = 1; k <= count; k++) {
+    const start = late ? addDays(today, (k - 1) * L) : addDays(S, k * L);
+    let earliest = start;
+    let latest = start;
+    if (range) {
+      earliest = late ? addDays(today, (k - 1) * minLen) : addDays(S, k * minLen);
+      latest = late ? addDays(today, (k - 1) * maxLen) : addDays(S, k * maxLen);
+      if (earliest > start) earliest = start;
+      if (latest < start) latest = start;
+    }
+    const ovulation = addDays(start, -ovOffset);
+    const ovulationEarliest = addDays(earliest, -ovOffset);
+    const ovulationLatest = addDays(latest, -ovOffset);
+    upcoming.push({
+      index: k,
+      start,
+      end: addDays(start, P - 1),
+      earliest,
+      latest,
+      ovulation,
+      ovulationEarliest,
+      ovulationLatest,
+      fertileStart: addDays(ovulationEarliest, -FERTILE_BEFORE_OVULATION),
+      fertileEnd: addDays(ovulationLatest, FERTILE_AFTER_OVULATION),
+      pmsStart: addDays(earliest, -PMS_DAYS),
+      pmsEnd: addDays(earliest, -1),
+    });
+  }
+
+  const after = (d: DayKey) => d > lastEnd;
+  const predicted = new Set<DayKey>();
+  const possible = new Set<DayKey>();
+  const fertile = new Set<DayKey>();
+  const ovulation = new Set<DayKey>();
+  const pms = new Set<DayKey>();
+  for (const u of upcoming) {
+    daysBetween(u.start, u.end).forEach((d) => predicted.add(d));
+    if (u.earliest !== u.latest) daysBetween(u.earliest, addDays(u.latest, P - 1)).forEach((d) => possible.add(d));
+    // When late, the projected cycle's ovulation and PMS days would be in the past — skip them.
+    if (!(late && u.index === 1)) {
+      daysBetween(u.fertileStart, u.fertileEnd).filter(after).forEach((d) => fertile.add(d));
+      daysBetween(u.ovulationEarliest, u.ovulationLatest).filter(after).forEach((d) => ovulation.add(d));
+      daysBetween(u.pmsStart, u.pmsEnd).filter(after).forEach((d) => pms.add(d));
+    }
+  }
+  predicted.forEach((d) => possible.delete(d));
+  const sorted = (s: Set<DayKey>) => Array.from(s).sort();
+
+  let phaseDetail: PhaseDetail | null = status.phase;
+  if (status.phase === 'luteal') {
+    const next = upcoming[0];
+    if (late || diffDays(today, next.earliest) <= PMS_DAYS) phaseDetail = 'pms';
+  }
+
+  return {
+    ...empty,
+    upcoming,
+    expectedStart,
+    daysLate,
+    showLateBanner: daysLate > LATE_BANNER_DAYS,
+    phaseDetail,
+    calendar: {
+      predicted: sorted(predicted),
+      possible: sorted(possible),
+      fertile: sorted(fertile),
+      ovulation: sorted(ovulation),
+      pms: sorted(pms),
+    },
   };
 }
