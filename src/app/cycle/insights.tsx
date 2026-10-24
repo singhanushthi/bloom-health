@@ -91,7 +91,7 @@ export default function CycleInsights() {
         <Card>
           <CardHeader icon={ChartColumn} label="Cycle length" accent={c.cycle} soft={c.cycleSoft} />
           <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
-            {bars.length >= 2 && width > 0 ? (
+            {bars.length >= 2 ? (
               <BarChart
                 data={bars.map((b, i) => ({
                   label: formatDay(b.start, { month: 'short' }),
@@ -101,7 +101,7 @@ export default function CycleInsights() {
                 }))}
                 color={c.cycle}
                 softColor={c.cycleSoft}
-                width={width}
+                width={width || 300}
                 goal={avg}
                 goalLabel={`avg ${avg}`}
                 formatY={(v) => `${Math.round(v)}`}

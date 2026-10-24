@@ -225,7 +225,7 @@ export function CalendarLegend({ goal, showPossible }: { goal: CycleGoal; showPo
         <Svg width={18} height={18}>
           <Circle cx={9} cy={9} r={7.5} fill="none" stroke={c.cycle} strokeWidth={2} strokeDasharray="3 2.5" />
         </Svg>,
-        'Predicted'
+        'Predicted (estimate)'
       )}
       {showPossible
         ? item(

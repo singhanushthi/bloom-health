@@ -145,3 +145,64 @@ describe('scheduler (mocked expo-notifications)', () => {
     expect(chOrder).toBeLessThan(reqOrder);
   });
 });
+
+describe('reminder sync', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { setDriver } = require('../src/db/driver') as typeof import('../src/db/driver');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { memoryDriver } = require('../test-utils/memoryDriver') as typeof import('../test-utils/memoryDriver');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const sync = require('../src/notify/sync') as typeof import('../src/notify/sync');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const store = require('../src/cycle/store') as typeof import('../src/cycle/store');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const repos = require('../src/db/repos') as typeof import('../src/db/repos');
+
+  const mk = () => {
+    const ids = new Set<string>();
+    const m = {
+      AndroidImportance: { DEFAULT: 3 },
+      AndroidNotificationVisibility: { PRIVATE: 0, PUBLIC: 1 },
+      SchedulableTriggerInputTypes: { DAILY: 'daily', DATE: 'date' },
+      setNotificationHandler: jest.fn(),
+      setNotificationChannelAsync: jest.fn(async () => null),
+      getPermissionsAsync: jest.fn(async () => ({ granted: true, status: 'granted', canAskAgain: true })),
+      requestPermissionsAsync: jest.fn(),
+      getAllScheduledNotificationsAsync: jest.fn(async () => Array.from(ids).map((identifier) => ({ identifier }))),
+      cancelScheduledNotificationAsync: jest.fn(async (id: string) => void ids.delete(id)),
+      scheduleNotificationAsync: jest.fn(async (r: { identifier: string }) => (ids.add(r.identifier), r.identifier)),
+    };
+    __setNotificationsModule(m as never);
+    return { m, ids };
+  };
+  const ctx = { mode: 'live' as const, granted: new Set<never>() };
+
+  beforeEach(() => {
+    setDriver(memoryDriver());
+    sync.__resetReminderSync();
+  });
+  afterEach(() => __setNotificationsModule(undefined));
+
+  it('reschedules from logs and settings; skips the native module when all off', async () => {
+    const { m, ids } = mk();
+    await store.saveCycleSettings({ reminders: { periodSoon: false, late: false } });
+    await sync.rescheduleCycleReminders(ctx);
+    expect(m.getAllScheduledNotificationsAsync).not.toHaveBeenCalled();
+
+    await repos.periods.add({ startDay: '2026-10-10', endDay: '2026-10-14' });
+    await store.saveCycleSettings({ reminders: { periodSoon: true, logDay: true } });
+    const r = await sync.rescheduleCycleReminders(ctx);
+    expect(r!.scheduled.length).toBeGreaterThan(1);
+    expect(Array.from(ids).every((id) => id.startsWith(REMINDER_PREFIX))).toBe(true);
+
+    await store.saveCycleSettings({ reminders: { periodSoon: false, logDay: false } });
+    await sync.rescheduleCycleReminders(ctx);
+    expect(ids.size).toBe(0);
+  });
+
+  it('never schedules in demo mode', async () => {
+    const { m } = mk();
+    expect(await sync.rescheduleCycleReminders({ ...ctx, mode: 'demo' })).toBeNull();
+    expect(m.getAllScheduledNotificationsAsync).not.toHaveBeenCalled();
+  });
+});

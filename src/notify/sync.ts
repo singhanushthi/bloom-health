@@ -5,15 +5,14 @@
  * "bloom-cycle:" notification. When reminders are all off and nothing was scheduled before, it
  * doesn't touch the native module at all. Demo mode never schedules anything.
  */
-import { useEffect, useRef } from 'react';
-import { loadCycleSettings, onCycleChange } from '../cycle/store';
+import { getCycleKv, loadCycleSettings, setCycleKv } from '../cycle/store';
 import { getCycleStatus } from '../health/cycle';
 import type { ReadContext } from '../health/context';
-import { useAppState } from '../state/AppState';
 import { anyReminderOn, buildReminderPlan, type PlannedReminder } from './plan';
 import { applyReminderPlan, type ApplyResult } from './scheduler';
 
-let lastScheduled = -1; // unknown after launch → cancel once to clean up stale ids
+const SCHEDULED_KEY = 'reminders.scheduled';
+let lastScheduled = -1; // unknown after launch → read the stored count
 let running: Promise<ApplyResult | null> | null = null;
 let again = false;
 
@@ -36,9 +35,14 @@ export async function rescheduleCycleReminders(ctx: ReadContext): Promise<ApplyR
     try {
       const settings = await loadCycleSettings();
       const plan = await currentReminderPlan(ctx);
+      if (lastScheduled < 0) lastScheduled = Number((await getCycleKv(SCHEDULED_KEY)) ?? '0') || 0;
+      // Nothing to schedule and nothing scheduled before: don't touch the native module.
       if (!plan.length && lastScheduled === 0) return null;
       const r = await applyReminderPlan(plan, { discreet: settings.discreet });
-      lastScheduled = r.scheduled.length;
+      if (r.skipped !== 'no-module') {
+        lastScheduled = r.scheduled.length;
+        await setCycleKv(SCHEDULED_KEY, String(lastScheduled)).catch(() => {});
+      }
       return r;
     } catch {
       return null;
@@ -58,34 +62,4 @@ export function __resetReminderSync(): void {
   lastScheduled = -1;
   running = null;
   again = false;
-}
-
-/**
- * Mount once (e.g. in the root layout, or via TodayCycleCard / the Cycle tab): reschedules on
- * launch, whenever app data changes (dataVersion) and whenever cycle settings change.
- */
-export function useCycleReminderSync(): void {
-  const { ctx, dataVersion, ready } = useAppState();
-  const ctxRef = useRef(ctx);
-  ctxRef.current = ctx;
-  useEffect(() => {
-    if (!ready) return;
-    let t: ReturnType<typeof setTimeout> | null = null;
-    const kick = () => {
-      if (t) clearTimeout(t);
-      t = setTimeout(() => void rescheduleCycleReminders(ctxRef.current), 600);
-    };
-    kick();
-    const off = onCycleChange(kick);
-    return () => {
-      off();
-      if (t) clearTimeout(t);
-    };
-  }, [ready, dataVersion, ctx.mode]);
-}
-
-/** Renders nothing; mount once near the root to keep reminders in sync. */
-export function CycleReminderSync(): null {
-  useCycleReminderSync();
-  return null;
 }

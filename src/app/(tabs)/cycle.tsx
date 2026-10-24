@@ -44,7 +44,7 @@ import { useCycleColors } from '../../cycle/theme';
 import type { PeriodLog } from '../../db/repos';
 import { CONFIDENCE_LABEL } from '../../health/cyclePrediction';
 import { formatDay, todayKey, type DayKey } from '../../health/dates';
-import { useCycleReminderSync } from '../../notify/sync';
+import { useCycleReminderSync } from '../../notify/ReminderSync';
 import { useAppState } from '../../state/AppState';
 import { space } from '../../theme/tokens';
 

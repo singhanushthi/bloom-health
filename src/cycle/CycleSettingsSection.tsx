@@ -9,7 +9,7 @@ import { ChipRow, Field, ToggleChip } from '../components/sheets/Sheet';
 import { Button, Card, CardHeader, Skeleton, Text } from '../components/ui';
 import { anyReminderOn } from '../notify/plan';
 import { getReminderPermission, requestReminderPermission, type PermissionState } from '../notify/scheduler';
-import { useCycleReminderSync } from '../notify/sync';
+import { useCycleReminderSync } from '../notify/ReminderSync';
 import { useAppState } from '../state/AppState';
 import { space } from '../theme/tokens';
 import { useCycleSettings } from './hooks';

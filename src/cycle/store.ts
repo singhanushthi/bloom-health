@@ -187,6 +187,24 @@ export async function saveCycleSettings(patch: CycleSettingsPatch): Promise<Cycl
   return next;
 }
 
+/** Small internal key/value helpers (e.g. how many reminders are scheduled). */
+export async function getCycleKv(key: string): Promise<string | null> {
+  try {
+    const d = await cycleDb();
+    return (await d.first<{ value: string }>('SELECT value FROM cycle_kv WHERE key = ?', [key]))?.value ?? null;
+  } catch {
+    return null;
+  }
+}
+export async function setCycleKv(key: string, value: string): Promise<void> {
+  const d = await cycleDb();
+  await d.run(
+    `INSERT INTO cycle_kv (key, value, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    [key, value, nowIso()]
+  );
+}
+
 /* ------------------------------ Setup / quick ----------------------------- */
 
 export interface SetupInput {

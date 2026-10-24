@@ -10,7 +10,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { Button, Card, CardHeader, CardSkeleton, Chip, Text } from '../components/ui';
 import { todayKey } from '../health/dates';
-import { useCycleReminderSync } from '../notify/sync';
+import { useCycleReminderSync } from '../notify/ReminderSync';
 import { useAppState } from '../state/AppState';
 import { space } from '../theme/tokens';
 import { useCycleOverview, useCycleSettings } from './hooks';

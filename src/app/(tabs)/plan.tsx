@@ -22,6 +22,7 @@ import { FoodSummaryCard } from '../../plan/ui/FoodSummary';
 import { InfoNote, fmtKg } from '../../plan/ui/parts';
 import { PlanSetupCard } from '../../plan/ui/TodayCards';
 import { WeightChart } from '../../plan/ui/WeightChart';
+import { KitchenEntryCard } from '../../kitchen/ui/KitchenEntryCard';
 import { radius, space } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { todayKey } from '../../health/dates';
@@ -146,6 +147,7 @@ function PlanBody({ state }: { state: PlanState }) {
       </Card>
 
       <IdeasCard state={state} />
+      <KitchenEntryCard diet={state.profile?.diet ?? null} />
       <YogaCard state={state} />
       <UpdatesCard state={state} />
       <WeeklyPlanCard state={state} />
