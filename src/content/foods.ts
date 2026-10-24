@@ -258,7 +258,7 @@ const DATA: [FoodCategory, Row[]][] = [
       ['kachori', 'Kachori', 'khasta kachori|dal kachori|कचौरी', 'vegan', '1 kachori (60 g)', 60, 252, 5.0, 25.0, 14.5, 2.5, A],
       ['dhokla', 'Dhokla', 'khaman|khaman dhokla|ढोकला', 'veg', '3 pieces (100 g)', 100, 162, 6.5, 22.0, 5.0, 2.0, A],
       ['veg-puff', 'Veg puff', 'puff|patties|vegetable puff', 'veg', '1 puff (80 g)', 80, 282, 5.0, 27.0, 17.0, 1.5],
-      ['namkeen-bhujia', 'Namkeen / bhujia', 'bhujia|aloo bhujia|sev|mixture|namkeen|नमकीन|भुजिया', 'vegan', '1 small bowl (30 g)', 30, 168, 4.5, 13.0, 11.0, 2.0],
+      ['namkeen-bhujia', 'Namkeen / bhujia', 'bhujia|aloo bhujia|sev|mixture|namkeen|नमकीन|भुजिया', 'vegan', '1 small bowl (30 g)', 30, 164, 4.0, 12.5, 10.5, 1.8],
       ['banana-chips', 'Banana chips', 'kela chips|nendran chips', 'vegan', '1 small bowl (30 g)', 30, 162, 0.7, 17.0, 10.0, 2.0],
       ['roasted-chana', 'Roasted chana', 'bhuna chana|bhune chane|chana|भुने चने', 'vegan', '1 handful (30 g)', 30, 110, 6.5, 15.0, 1.6, 5.0],
       ['makhana', 'Roasted makhana', 'fox nuts|lotus seeds|phool makhana|मखाना', 'vegan', '1 bowl (25 g)', 25, 92, 2.4, 19.0, 0.5, 1.8],
